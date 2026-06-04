@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProposalHub — Submit & Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── HEADER ── -->
+  <header id="mainHeader">
+    <div class="logo">Proposal<span>Hub</span></div>
+    <div class="header-right">
+      <div class="role-badge" id="roleBadge"></div>
+      <button class="btn-logout" onclick="logout()">↩ Logout</button>
+    </div>
+  </header>
+  <!-- ════════════════════════════════
+       CATEGORY SELECTION SCREEN
+  ════════════════════════════════ -->
+  <section class="page" id="page-category">
+    <div class="category-wrap">
+
+      <div class="page-hero">
+        <p class="eyebrow">Step 1 of 2</p>
+        <h1 class="page-heading">Select <span>Proposal Category</span></h1>
+        <p class="page-sub">Choose the category that best fits your proposal before proceeding.</p>
+      </div>
+
+      <div class="category-cards">
+
+        <div class="cat-card" data-cat="1" onclick="selectCategory(this)">
+          <div class="cat-card-num">I</div>
+          <div class="cat-card-info">
+            <div class="cat-card-title">Diploma / Post-Graduate Diploma</div>
+            <div class="cat-card-desc">Category I programs</div>
+          </div>
+          <div class="cat-card-check">✓</div>
+        </div>
+
+        <div class="cat-card" data-cat="2" onclick="selectCategory(this)">
+          <div class="cat-card-num">II</div>
+          <div class="cat-card-info">
+            <div class="cat-card-title">EEP — Executive Education Programs</div>
+            <div class="cat-card-desc">Category II programs</div>
+          </div>
+          <div class="cat-card-check">✓</div>
+        </div>
+
+        <div class="cat-card" data-cat="3" onclick="selectCategory(this)">
+          <div class="cat-card-num">III</div>
+          <div class="cat-card-info">
+            <div class="cat-card-title">FDP — Faculty Development Programs</div>
+            <div class="cat-card-desc">Category III programs</div>
+          </div>
+          <div class="cat-card-check">✓</div>
+        </div>
+
+        <div class="cat-card" data-cat="4" onclick="selectCategory(this)">
+          <div class="cat-card-num">IV</div>
+          <div class="cat-card-info">
+            <div class="cat-card-title">Seminars / Conclaves / Workshops</div>
+            <div class="cat-card-desc">Category IV programs</div>
+          </div>
+          <div class="cat-card-check">✓</div>
+        </div>
+
+        <div class="cat-card" data-cat="5" onclick="selectCategory(this)">
+          <div class="cat-card-num">V</div>
+          <div class="cat-card-info">
+            <div class="cat-card-title">Conferences</div>
+            <div class="cat-card-desc">Category V programs</div>
+          </div>
+          <div class="cat-card-check">✓</div>
+        </div>
+
+      </div>
+
+      <div class="category-footer">
+        <p class="cat-error" id="catError"></p>
+        <button class="btn-next" onclick="proceedToForm()">Continue to Proposal Form →</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════
+       PAGE 1 — STUDENT SUBMISSION
+  ════════════════════════════════ -->
+  <section class="page" id="page-student">
+    <div class="student-wrap">
+
+      <div class="page-hero">
+        <p class="eyebrow">Student Portal</p>
+        <h1 class="page-heading">Submit Your <span>Project Proposal</span></h1>
+        <p class="page-sub">Fill in the sections below or upload a document to auto-fill.</p>
+      </div>
+
+      
+
+      <!-- ── FILE UPLOAD AUTO-FILL ── -->
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-icon">📎</div>
+        <div class="upload-text">
+          <strong>Auto-fill from document</strong>
+          <span>Drag & drop or click to upload a PDF, Word, or TXT file</span>
+        </div>
+        <input type="file" id="fileUpload" accept=".pdf,.doc,.docx,.txt" hidden />
+        <button type="button" class="btn-upload" onclick="document.getElementById('fileUpload').click()">Choose File</button>
+      </div>
+
+      <!-- Upload status -->
+      <div class="upload-status" id="uploadStatus" style="display:none">
+        <div class="upload-progress">
+          <div class="upload-progress-bar" id="uploadProgressBar"></div>
+        </div>
+        <p class="upload-status-text" id="uploadStatusText">Reading file…</p>
+      </div>
+
+      <!-- Step indicator -->
+      <div class="step-bar">
+        <div class="step active" data-step="1"><span>1</span> Basic Info</div>
+        <div class="step-line"></div>
+        <div class="step" data-step="2"><span>2</span> Problem & Goals</div>
+        <div class="step-line"></div>
+        <div class="step" data-step="3"><span>3</span> Methodology</div>
+        <div class="step-line"></div>
+        <div class="step" data-step="4"><span>4</span> Outcomes</div>
+      </div>
+
+      <form id="proposalForm" novalidate>
+
+        <!-- ── STEP 1: Basic Info ── -->
+        <div class="form-step active" id="step-1">
+          <div class="section-label">Step 1 of 4 — Basic Information</div>
+
+          <div class="form-grid-2">
+            <div class="field">
+              <label>Student Name <span class="req">*</span></label>
+              <input type="text" id="studentName" placeholder="e.g. Arun Kumar" />
+            </div>
+            <div class="field">
+              <label>Student ID <span class="req">*</span></label>
+              <input type="text" id="studentId" placeholder="e.g. CS2024001" />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="field">
+              <label>Department <span class="req">*</span></label>
+              <select id="department">
+                <option value="">Select department…</option>
+                <option>Computer Science & Engineering</option>
+                <option>Information Technology</option>
+                <option>Electronics & Communication</option>
+                <option>Mechanical Engineering</option>
+                <option>Civil Engineering</option>
+                <option>Data Science & AI</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Academic Year <span class="req">*</span></label>
+              <select id="academicYear">
+                <option value="">Select year…</option>
+                <option>2024–25</option>
+                <option>2025–26</option>
+                <option>2026–27</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Proposal Title <span class="req">*</span></label>
+            <input type="text" id="proposalTitle" placeholder="e.g. AI-Powered Smart Attendance System using Facial Recognition" />
+          </div>
+
+          <div class="form-grid-2">
+            <div class="field">
+              <label>Project Type <span class="req">*</span></label>
+              <select id="projectType">
+                <option value="">Select type…</option>
+                <option>Research</option>
+                <option>Development</option>
+                <option>Industry Collaboration</option>
+                <option>Open Source</option>
+                <option>Social Impact</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Estimated Duration <span class="req">*</span></label>
+              <select id="duration">
+                <option value="">Select…</option>
+                <option>1 Month</option>
+                <option>2 Months</option>
+                <option>3 Months</option>
+                <option>6 Months</option>
+                <option>1 Year</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <div></div>
+            <button type="button" class="btn-next" onclick="nextStep(1)">Next: Problem & Goals →</button>
+          </div>
+        </div>
+
+        <!-- ── STEP 2: Problem & Goals ── -->
+        <div class="form-step" id="step-2">
+          <div class="section-label">Step 2 of 4 — Problem & Goals</div>
+
+          <div class="field">
+            <label>Introduction <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="introduction" rows="4" maxlength="800" placeholder="Briefly introduce your project."></textarea>
+              <span class="char-count" id="cnt-intro">0 / 800</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Problem Statement <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="problemStatement" rows="4" maxlength="800" placeholder="Describe the specific problem your project addresses."></textarea>
+              <span class="char-count" id="cnt-prob">0 / 800</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Objectives <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="objectives" rows="4" maxlength="600" placeholder="List the key objectives of your project."></textarea>
+              <span class="char-count" id="cnt-obj">0 / 600</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Scope of Work <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="scopeOfWork" rows="4" maxlength="600" placeholder="Define what is in-scope and out-of-scope."></textarea>
+              <span class="char-count" id="cnt-scope">0 / 600</span>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button type="button" class="btn-back" onclick="prevStep(2)">← Back</button>
+            <button type="button" class="btn-next" onclick="nextStep(2)">Next: Methodology →</button>
+          </div>
+        </div>
+
+        <!-- ── STEP 3: Methodology ── -->
+        <div class="form-step" id="step-3">
+          <div class="section-label">Step 3 of 4 — Methodology</div>
+
+          <div class="field">
+            <label>Methodologies <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="methodologies" rows="5" maxlength="800" placeholder="Describe the methodologies you will follow."></textarea>
+              <span class="char-count" id="cnt-meth">0 / 800</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Tools & Technologies <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="tools" rows="3" maxlength="400" placeholder="e.g. Python, TensorFlow, React, PostgreSQL…"></textarea>
+              <span class="char-count" id="cnt-tools">0 / 400</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Team Composition <span class="req">*</span></label>
+            <input type="text" id="teamComposition" placeholder="e.g. 3 members — 1 ML Engineer, 1 Backend Dev, 1 UI/UX Designer" />
+          </div>
+
+          <div class="step-actions">
+            <button type="button" class="btn-back" onclick="prevStep(3)">← Back</button>
+            <button type="button" class="btn-next" onclick="nextStep(3)">Next: Outcomes →</button>
+          </div>
+        </div>
+
+        <!-- ── STEP 4: Outcomes ── -->
+        <div class="form-step" id="step-4">
+          <div class="section-label">Step 4 of 4 — Outcomes & Enhancements</div>
+
+          <div class="field">
+            <label>Expected Outcome <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="expectedOutcome" rows="4" maxlength="600" placeholder="What deliverables and results do you expect?"></textarea>
+              <span class="char-count" id="cnt-out">0 / 600</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Future Enhancements <span class="req">*</span></label>
+            <div class="char-wrap">
+              <textarea id="futureEnhancements" rows="4" maxlength="600" placeholder="What improvements can be made in the future?"></textarea>
+              <span class="char-count" id="cnt-fut">0 / 600</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>References / Bibliography</label>
+            <div class="char-wrap">
+              <textarea id="references" rows="3" maxlength="500" placeholder="List any papers, articles, or resources referenced (optional)."></textarea>
+              <span class="char-count" id="cnt-ref">0 / 500</span>
+            </div>
+          </div>
+
+          <div class="declaration-box">
+            <label class="check-label">
+              <input type="checkbox" id="declaration" />
+              <span>I declare that this proposal is my original work and all information provided is accurate and complete.</span>
+            </label>
+          </div>
+
+          <div class="step-actions">
+            <button type="button" class="btn-back" onclick="prevStep(4)">← Back</button>
+            <button type="submit" class="btn-submit" id="submitBtn">
+              <span class="btn-text">Submit Proposal</span>
+              <span class="btn-icon">🚀</span>
+            </button>
+          </div>
+        </div>
+
+      </form>
+
+      <!-- Success Banner -->
+      <div class="success-banner" id="successBanner" style="display:none">
+        <div class="success-icon">✅</div>
+        <h2>Proposal Submitted!</h2>
+        <p>Your proposal has been received and is now pending faculty review.</p>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
+          <button class="btn-next" onclick="switchPage('faculty')">View Faculty Dashboard →</button>
+          <button class="btn-back" onclick="resetForm()" style="padding:12px 28px;">+ Submit Another Proposal</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- ════════════════════════════════
+       PAGE 2 — FACULTY REVIEW
+  ════════════════════════════════ -->
+  <section class="page" id="page-faculty">
+    <div class="faculty-wrap">
+
+      <!-- ── SIDEBAR ── -->
+      <div class="faculty-sidebar">
+        <div class="sidebar-head">
+          <p class="eyebrow" style="color:var(--accent)">Faculty Portal</p>
+          <h2 class="sidebar-title">Submitted<br/>Proposals</h2>
+        </div>
+
+        <!-- Pending -->
+        <div class="sidebar-section-label">🕐 Pending</div>
+        <div class="proposal-list" id="listPending">
+          <div class="empty-list">No pending proposals.</div>
+        </div>
+
+        <!-- Approved -->
+        <div class="sidebar-section-label approved">✅ Approved</div>
+        <div class="proposal-list" id="listApproved">
+          <div class="empty-list">No approved proposals.</div>
+        </div>
+
+        <!-- Not Approved -->
+        <div class="sidebar-section-label rejected">❌ Not Approved</div>
+        <div class="proposal-list" id="listRejected">
+          <div class="empty-list">No rejected proposals.</div>
+        </div>
+      </div>
+
+      <!-- ── MAIN PANEL ── -->
+      <div class="faculty-main" id="facultyMain">
+
+        <!-- Empty state -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📋</div>
+          <h3>Select a Proposal</h3>
+          <p>Choose a proposal from the sidebar to review it here.</p>
+        </div>
+
+        <!-- Review panel -->
+        <div class="review-panel" id="reviewPanel" style="display:none">
+
+          <!-- Proposal Header -->
+          <div class="review-header">
+            <div>
+              <div class="proposal-badge" id="rv-badge">Research</div>
+              <h2 class="review-title" id="rv-title">—</h2>
+              <div class="review-meta">
+                <span id="rv-student">—</span>
+                <span class="dot">·</span>
+                <span id="rv-dept">—</span>
+                <span class="dot">·</span>
+                <span id="rv-year">—</span>
+              </div>
+            </div>
+            <div class="status-pill" id="rv-status">Pending</div>
+          </div>
+
+          <!-- Detail Cards -->
+          <div class="detail-grid" id="detailGrid"></div>
+
+          <!-- Action Toolbar -->
+          <div class="action-toolbar">
+            <button class="btn-tool" id="btnSummarize" onclick="summarizeProposal()">
+              📝 Summarize Proposal
+            </button>
+            <button class="btn-tool" id="btnChatbot" onclick="toggleChatbot()">
+              🤖 Check with AI
+            </button>
+            <div class="divider-v"></div>
+            <button class="btn-approve" onclick="setDecision('approved')">✅ Approve</button>
+            <button class="btn-reject"  onclick="setDecision('rejected')">❌ Not Approved</button>
+          </div>
+
+          <!-- Summary Panel -->
+          <div class="summary-panel" id="summaryPanel" style="display:none">
+            <div class="panel-header">
+              <h3>📄 Full Proposal Summary</h3>
+              <button class="close-panel" onclick="document.getElementById('summaryPanel').style.display='none'">✕</button>
+            </div>
+            <div class="summary-content" id="summaryContent"></div>
+          </div>
+
+          <!-- Chatbot Panel -->
+          <div class="chatbot-panel" id="chatbotPanel" style="display:none">
+            <div class="panel-header">
+              <h3>🤖 AI Review Assistant</h3>
+              <button class="close-panel" onclick="document.getElementById('chatbotPanel').style.display='none'">✕</button>
+            </div>
+            <div class="chat-window" id="chatWindow">
+              <div class="chat-msg bot">
+                <div class="chat-avatar">AI</div>
+                <div class="chat-bubble">Hello! I'm your AI Review Assistant. Ask me anything — e.g. <em>"Is this proposal up to company standard?"</em> or <em>"What are the weaknesses?"</em></div>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input type="text" id="chatInput" placeholder="Ask about this proposal…" onkeydown="if(event.key==='Enter') sendChat()" />
+              <button class="btn-send" onclick="sendChat()">Send ↑</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>

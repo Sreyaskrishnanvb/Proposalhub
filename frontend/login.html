@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProposalHub — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="login.css" />
+</head>
+<body>
+
+  <div class="login-page">
+
+    <!-- Left panel — branding -->
+    <div class="login-left">
+      <div class="brand-wrap">
+        <div class="brand-logo">Proposal<span>Hub</span></div>
+        <p class="brand-tagline">Academic Proposal<br/>Management System</p>
+        <div class="brand-features">
+          <div class="feat">✦ Submit project proposals</div>
+          <div class="feat">✦ AI-powered review assistant</div>
+          <div class="feat">✦ Real-time approval workflow</div>
+          <div class="feat">✦ Auto-fill from documents</div>
+        </div>
+      </div>
+      <p class="brand-footer">© 2026 ProposalHub</p>
+    </div>
+
+    <!-- Right panel — auth forms -->
+    <div class="login-right">
+      <div class="auth-box">
+
+        <div class="auth-head">
+          <h2 id="authTitle">Welcome back</h2>
+          <p id="authSub">Sign in to your account</p>
+        </div>
+
+        <!-- Tab switcher -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Login</button>
+          <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">Register</button>
+        </div>
+
+        <!-- ── LOGIN FORM ── -->
+        <div class="auth-form active" id="formLogin">
+
+          <div class="auth-field">
+            <label>Role</label>
+            <div class="role-selector">
+              <div class="role-opt active" data-role="student" onclick="setRole(this,'login')">
+                <span>🎓</span> Student
+              </div>
+              <div class="role-opt" data-role="coordinator" onclick="setRole(this,'login')">
+                <span>📋</span> Coordinator
+              </div>
+              <div class="role-opt" data-role="executive" onclick="setRole(this,'login')">
+                <span>🏢</span> Executive
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label>Username</label>
+            <input type="text" id="loginUsername" placeholder="Enter your username" onkeydown="if(event.key==='Enter') handleLogin()" />
+          </div>
+
+          <div class="auth-field">
+            <label>Password</label>
+            <div class="pw-wrap">
+              <input type="password" id="loginPassword" placeholder="Enter your password" onkeydown="if(event.key==='Enter') handleLogin()" />
+              <button type="button" class="pw-toggle" onclick="togglePw('loginPassword',this)">👁</button>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label>Course</label>
+            <select id="loginCourse">
+              <option value="">Select your course…</option>
+              <option>Computer Science & Engineering</option>
+              <option>Information Technology</option>
+              <option>Electronics & Communication</option>
+              <option>Mechanical Engineering</option>
+              <option>Civil Engineering</option>
+              <option>Data Science & AI</option>
+            </select>
+          </div>
+
+          <div class="auth-error" id="loginError"></div>
+
+          <button class="btn-auth" onclick="handleLogin()">
+            <span>Login</span> <span class="btn-arrow">→</span>
+          </button>
+
+          <p class="auth-switch">Don't have an account? <a onclick="switchTab('register')">Register here</a></p>
+        </div>
+
+        <!-- ── REGISTER FORM ── -->
+        <div class="auth-form" id="formRegister">
+
+          <div class="auth-field">
+            <label>Role</label>
+            <div class="role-selector">
+              <div class="role-opt active" data-role="student" onclick="setRole(this,'register')">
+                <span>🎓</span> Student
+              </div>
+              <div class="role-opt" data-role="coordinator" onclick="setRole(this,'register')">
+                <span>📋</span> Coordinator
+              </div>
+              <div class="role-opt" data-role="executive" onclick="setRole(this,'register')">
+                <span>🏢</span> Executive
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-grid">
+            <div class="auth-field">
+              <label>Username</label>
+              <input type="text" id="regUsername" placeholder="Choose a username" />
+            </div>
+            <div class="auth-field">
+              <label>Email ID</label>
+              <input type="email" id="regEmail" placeholder="your@email.com" />
+            </div>
+          </div>
+
+          <div class="auth-grid">
+            <div class="auth-field">
+              <label>Password</label>
+              <div class="pw-wrap">
+                <input type="password" id="regPassword" placeholder="Create password" />
+                <button type="button" class="pw-toggle" onclick="togglePw('regPassword',this)">👁</button>
+              </div>
+            </div>
+            <div class="auth-field">
+              <label>Confirm Password</label>
+              <div class="pw-wrap">
+                <input type="password" id="regConfirmPassword" placeholder="Repeat password" />
+                <button type="button" class="pw-toggle" onclick="togglePw('regConfirmPassword',this)">👁</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-grid">
+            <div class="auth-field">
+              <label>Course</label>
+              <select id="regCourse">
+                <option value="">Select course…</option>
+                <option>Computer Science & Engineering</option>
+                <option>Information Technology</option>
+                <option>Electronics & Communication</option>
+                <option>Mechanical Engineering</option>
+                <option>Civil Engineering</option>
+                <option>Data Science & AI</option>
+              </select>
+            </div>
+            <div class="auth-field">
+              <label>Date of Joining</label>
+              <input type="date" id="regDoj" />
+            </div>
+          </div>
+
+          <div class="auth-error" id="registerError"></div>
+
+          <button class="btn-auth" onclick="handleRegister()">
+            <span>Create Account</span> <span class="btn-arrow">→</span>
+          </button>
+
+          <p class="auth-switch">Already have an account? <a onclick="switchTab('login')">Login here</a></p>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>
