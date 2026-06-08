@@ -47,16 +47,6 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  if (currentRole === 'executive') {
-    showPage('faculty');
-    loadProposalsFromDB();
-  } else {
-    // student or coordinator → show category selection first
-    showPage('category');
-  }
-  updateStepBar();
-});
 /* ─────────────────────────────
    CATEGORY SELECTION
 ───────────────────────────── */
@@ -75,7 +65,6 @@ function proceedToForm() {
     return;
   }
 
-  // Show selected category badge on form
   const labels = {
     '1': 'Category I — Diploma / PG Diploma',
     '2': 'Category II — EEP',
@@ -84,19 +73,31 @@ function proceedToForm() {
     '5': 'Category V — Conferences',
   };
 
-  // Insert badge into form page if not already there
-  const hero = document.querySelector('.page-hero');
+  // All categories use the accordion form
+  showPage('student');
+
+  // Show badge
+  const wrap = document.querySelector('#page-student .student-wrap');
   let badge = document.getElementById('catBadge');
   if (!badge) {
     badge = document.createElement('div');
     badge.id = 'catBadge';
     badge.className = 'selected-cat-badge';
-    hero.parentNode.insertBefore(badge, hero.nextSibling);
   }
   badge.textContent = '📁 ' + labels[selectedCategory];
-
-  showPage('student');
+  const hero = wrap?.querySelector('.page-hero');
+  if (hero) hero.insertAdjacentElement('afterend', badge);
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (currentRole === 'executive') {
+    showPage('faculty');
+    loadProposalsFromDB();
+  } else {
+    showPage('category');
+  }
+});
+
 /* ─────────────────────────────
    STEP NAVIGATION
 ───────────────────────────── */
@@ -130,29 +131,26 @@ function updateStepBar() {
    VALIDATION
 ───────────────────────────── */
 function validateStep(step) {
+  return true;
+}
+
+function validateForm() {
+  const required = ['programmeName','submittedBy','designation','submissionDate','submittedTo','ceecsCat'];
   let valid = true;
-  const stepFields = {
-    1: ['studentName','studentId','department','academicYear','proposalTitle','projectType','duration'],
-    2: ['introduction','problemStatement','objectives','scopeOfWork'],
-    3: ['methodologies','tools','teamComposition'],
-    4: ['expectedOutcome','futureEnhancements'],
-  };
-  stepFields[step].forEach(id => {
+  required.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (!el.value.trim()) { el.classList.add('error'); valid = false; }
+    if (!el.value.trim()) { el.classList.add('error'); valid = false; openAccordion('acc-1'); }
     else el.classList.remove('error');
   });
-  if (step === 4) {
-    const decl = document.getElementById('declaration');
-    if (!decl.checked) { alert('Please check the declaration box.'); valid = false; }
-  }
-  if (!valid) shakeForm();
+  const decl = document.getElementById('declaration');
+  if (!decl.checked) { alert('Please check the declaration box.'); valid = false; }
   return valid;
 }
 
 function shakeForm() {
-  const activeStep = document.querySelector('.form-step.active');
+  const activeStep = document.querySelector('.form-step.active') || document.querySelector('.accordion-section.open .accordion-body');
+  if (!activeStep) return;
   activeStep.style.animation = 'none';
   activeStep.offsetHeight;
   activeStep.style.animation = 'shake 0.4s ease';
@@ -190,12 +188,12 @@ Object.entries(counterMap).forEach(([id, cntId]) => {
 ───────────────────────────── */
 document.getElementById('proposalForm').addEventListener('submit', async function (e) {
   e.preventDefault();
-  if (!validateStep(4)) return;
+  if (!validateForm()) return;
 
   const proposal = collectFormData();
 
   try {
-    const response = await fetch('http://localhost:5000/Questions', {
+    const response = await fetch('http://localhost:5000/proposals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(proposal)
@@ -204,10 +202,8 @@ document.getElementById('proposalForm').addEventListener('submit', async functio
     console.log(data);
     proposals.push(proposal);
 
-    document.getElementById('proposalForm').style.display    = 'none';
-    document.getElementById('successBanner').style.display   = 'block';
-    document.querySelector('.step-bar').style.display        = 'none';
-    document.querySelector('.page-hero').style.display       = 'none';
+    document.getElementById('proposalForm').style.display  = 'none';
+    document.getElementById('successBanner').style.display = 'block';
 
     renderProposalList();
   } catch(err) {
@@ -216,39 +212,51 @@ document.getElementById('proposalForm').addEventListener('submit', async functio
   }
 });
 
-function resetForm() {
-  document.getElementById('proposalForm').reset();
-  Object.entries(counterMap).forEach(([, cntId]) => {
-    const cnt = document.getElementById(cntId);
-    if (cnt) { cnt.textContent = `0 / ${cnt.textContent.split('/')[1].trim()}`; cnt.style.color = 'var(--muted)'; }
-  });
-  document.querySelectorAll('.field input,.field select,.field textarea').forEach(el => el.classList.remove('error'));
-  document.getElementById(`step-${currentStep}`).classList.remove('active');
-  currentStep = 1;
-  document.getElementById('step-1').classList.add('active');
-  updateStepBar();
-  document.getElementById('proposalForm').style.display    = 'block';
-  document.getElementById('successBanner').style.display   = 'none';
-  document.querySelector('.step-bar').style.display        = 'flex';
-  document.querySelector('.page-hero').style.display       = 'block';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 function collectFormData() {
   return {
-    id: Date.now(),
     category: selectedCategory,
     submittedAt: new Date().toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }),
     status: 'pending',
-    studentName: val('studentName'), studentId: val('studentId'),
-    department: val('department'), academicYear: val('academicYear'),
-    proposalTitle: val('proposalTitle'), projectType: val('projectType'),
-    duration: val('duration'), introduction: val('introduction'),
-    problemStatement: val('problemStatement'), objectives: val('objectives'),
-    scopeOfWork: val('scopeOfWork'), methodologies: val('methodologies'),
-    tools: val('tools'), teamComposition: val('teamComposition'),
-    expectedOutcome: val('expectedOutcome'), futureEnhancements: val('futureEnhancements'),
-    references: val('references'),
+
+    // Section 1
+    programmeName:    val('programmeName'),
+    submittedBy:      val('submittedBy'),
+    designation:      val('designation'),
+    submissionDate:   val('submissionDate'),
+    submittedTo:      val('submittedTo'),
+    ceecsCat:         val('ceecsCat'),
+    aboutProgramme:   val('aboutProgramme'),
+    eligibility:      val('eligibility'),
+    programmeFee:     val('programmeFee'),
+    objectives1:      val('objectives1'),
+    benefits:         val('benefits'),
+
+    // Section 2
+    programmeOutcomes: val('programmeOutcomes'),
+    assessmentNotes:   val('assessmentNotes'),
+
+    // Section 3
+    coordinatorResp:  val('coordinatorResp'),
+    selectionProcess: val('selectionProcess'),
+    infrastructure:   val('infrastructure'),
+
+    // Section 4
+    budgetNotes: val('budgetNotes'),
+
+    // Tables
+    durationTable:     getTableData('tbl-duration-body'),
+    curriculumTable:   getTableData('tbl-curriculum-body'),
+    assessmentTable:   getTableData('tbl-assessment-body'),
+    orgStructureTable: getTableData('tbl-orgstructure-body'),
+    timelineTable:     getTableData('tbl-timeline-body'),
+    revenueTable:      getTableData('tbl-revenue-body'),
+    expenditureTable:  getTableData('tbl-expenditure-body'),
+    revDistTable:      getTableData('tbl-revdist-body'),
+    honorariumTable:   getTableData('tbl-honorarium-body'),
+    breakevenTable:    getTableData('tbl-breakeven-body'),
+
+    // Syllabus courses
+    syllabusCourses: getSyllabusCourses(),
   };
 }
 
@@ -257,12 +265,66 @@ function val(id) {
   return el ? el.value.trim() : '';
 }
 
+function getTableData(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return [];
+  return Array.from(tbody.rows).map(row => {
+    const cells = Array.from(row.querySelectorAll('input, textarea'));
+    return cells.map(c => c.value.trim());
+  });
+}
+
+function getSyllabusCourses() {
+  const courses = document.querySelectorAll('.syllabus-course');
+  return Array.from(courses).map(course => ({
+    title:    course.querySelector('.syllabus-course-title-input')?.value.trim() || '',
+    outcomes: getTableData(course.querySelector('tbody')?.id),
+    topics:   course.querySelector('.syllabus-topics')?.value.trim() || '',
+    labWork:  course.querySelector('.syllabus-lab')?.value.trim() || '',
+  }));
+}
+
+/* ─────────────────────────────
+   RESET FORM
+───────────────────────────── */
+function resetForm() {
+  document.getElementById('proposalForm').reset();
+
+  // Clear all table bodies
+  ['tbl-duration-body','tbl-curriculum-body','tbl-assessment-body',
+   'tbl-orgstructure-body','tbl-timeline-body','tbl-revenue-body',
+   'tbl-expenditure-body','tbl-revdist-body','tbl-honorarium-body',
+   'tbl-breakeven-body'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  // Clear syllabus courses
+  document.getElementById('syllabus-courses').innerHTML = '';
+  syllabusCourseCount = 0;
+
+  // Close all accordions
+  document.querySelectorAll('.accordion-section').forEach(s => s.classList.remove('open'));
+
+  // Reset char counters
+  Object.entries(counterMap).forEach(([, cntId]) => {
+    const cnt = document.getElementById(cntId);
+    if (cnt) { cnt.textContent = `0 / ${cnt.textContent.split('/')[1]?.trim() || ''}`; cnt.style.color = 'var(--muted)'; }
+  });
+
+  // Restore form UI
+  document.getElementById('proposalForm').style.display  = 'block';
+  document.getElementById('successBanner').style.display = 'none';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 /* ─────────────────────────────
    FACULTY — LOAD FROM DB
 ───────────────────────────── */
 async function loadProposalsFromDB() {
   try {
-    const res = await fetch('http://localhost:5000/Questions');
+    const res = await fetch('http://localhost:5000/proposals');
     proposals = await res.json();
     proposals.forEach(p => { if (!p.status) p.status = 'pending'; });
     renderProposalList();
@@ -292,9 +354,9 @@ function renderSection(listId, items, emptyMsg) {
     const i = proposals.indexOf(p);
     return `
       <div class="proposal-card ${selectedIdx === i ? 'selected' : ''}" onclick="selectProposal(${i})">
-        <div class="pc-title">${escHtml(p.proposalTitle)}</div>
+        <div class="pc-title">${escHtml(p.programmeName || p.proposalTitle || '—')}</div>
         <div class="pc-meta">
-          <span>${escHtml(p.studentName)}</span>
+          <span>${escHtml(p.submittedBy || p.studentName || '—')}</span>
           <span class="pc-status ${p.status}">${capitalize(p.status)}</span>
         </div>
       </div>`;
@@ -303,7 +365,7 @@ function renderSection(listId, items, emptyMsg) {
 
 function selectProposal(idx) {
   selectedIdx = idx;
-  selectedProposalId = proposals[idx]._id;
+  selectedProposalId = proposals[idx].id;
   renderProposalList();
   showReviewPanel(proposals[idx]);
   document.getElementById('summaryPanel').style.display  = 'none';
@@ -318,33 +380,85 @@ function selectProposal(idx) {
 function showReviewPanel(p) {
   document.getElementById('emptyState').style.display   = 'none';
   document.getElementById('reviewPanel').style.display  = 'block';
-  document.getElementById('rv-badge').textContent   = p.projectType;
-  document.getElementById('rv-title').textContent   = p.proposalTitle;
-  document.getElementById('rv-student').textContent = `${p.studentName} (${p.studentId})`;
-  document.getElementById('rv-dept').textContent    = p.department;
-  document.getElementById('rv-year').textContent    = p.academicYear;
+  document.getElementById('rv-badge').textContent   = p.ceecsCat || p.category || '—';
+  document.getElementById('rv-title').textContent   = p.programmeName || p.proposalTitle || '—';
+  document.getElementById('rv-student').textContent = p.submittedBy || '—';
+  document.getElementById('rv-dept').textContent    = p.designation || '—';
+  document.getElementById('rv-year').textContent    = p.submissionDate || p.submittedAt || '—';
   setStatusPill(p.status);
 
-  const sections = [
-    { label:'Introduction',       value:p.introduction },
-    { label:'Problem Statement',  value:p.problemStatement },
-    { label:'Objectives',         value:p.objectives },
-    { label:'Scope of Work',      value:p.scopeOfWork },
-    { label:'Methodologies',      value:p.methodologies },
-    { label:'Tools & Technologies',value:p.tools, mono:true },
-    { label:'Team Composition',   value:p.teamComposition },
-    { label:'Expected Outcome',   value:p.expectedOutcome },
-    { label:'Future Enhancements',value:p.futureEnhancements },
-    ...(p.references ? [{ label:'References', value:p.references }] : []),
-    { label:'Submitted', value:p.submittedAt },
-    { label:'Duration',  value:p.duration },
+  let html = '';
+
+  const textSections = [
+    { label:'About the Programme',        value: p.aboutProgramme },
+    { label:'Eligibility Criteria',       value: p.eligibility },
+    { label:'Programme Fee',              value: p.programmeFee },
+    { label:'Objectives',                 value: p.objectives1 },
+    { label:'Benefits to Students',       value: p.benefits },
+    { label:'Programme Outcomes',         value: p.programmeOutcomes },
+    { label:'Coordinator Responsibilities', value: p.coordinatorResp },
+    { label:'Selection Process',          value: p.selectionProcess },
+    { label:'Infrastructure',             value: p.infrastructure },
+    { label:'Budget Notes',               value: p.budgetNotes },
+    { label:'Assessment Notes',           value: p.assessmentNotes },
   ];
 
-  document.getElementById('detailGrid').innerHTML = sections.map((s, i) => `
-    <div class="detail-card ${i < 8 && i > 1 ? '' : 'full'}">
-      <div class="detail-card-label">${s.label}</div>
-      <div class="detail-card-value ${s.mono ? 'mono' : ''}">${escHtml(s.value) || '<em style="color:var(--muted)">—</em>'}</div>
-    </div>`).join('');
+  textSections.forEach(s => {
+    if (s.value) {
+      html += `<div class="detail-card full">
+        <div class="detail-card-label">${s.label}</div>
+        <div class="detail-card-value">${escHtml(s.value)}</div>
+      </div>`;
+    }
+  });
+
+  const tableSections = [
+    { label:'Programme Duration & Mode',  data: p.durationTable,     headers:['Parameter','Details'] },
+    { label:'Curriculum Overview',        data: p.curriculumTable,   headers:['No.','Course Title','Level','Hours','Credits'] },
+    { label:'Assessment Scheme',          data: p.assessmentTable,   headers:['Assessment Type','Components','Weightage','Mode'] },
+    { label:'Organising Structure',       data: p.orgStructureTable, headers:['Role','Responsibility'] },
+    { label:'Timeline & Key Dates',       data: p.timelineTable,     headers:['No.','Milestone','Tentative Date'] },
+    { label:'Revenue Projection',         data: p.revenueTable,      headers:['Parameter','Value'] },
+    { label:'Expenditure Estimate',       data: p.expenditureTable,  headers:['No.','Expenditure Head','Amount (Rs.)'] },
+    { label:'Revenue Distribution',       data: p.revDistTable,      headers:['S.No','Component','Norm','Rate','Amount (Rs.)'] },
+    { label:'Guest Faculty Honorarium',   data: p.honorariumTable,   headers:['Category of Resource Person','Rate'] },
+    { label:'Break-even Analysis',        data: p.breakevenTable,    headers:['Parameter','Value'] },
+  ];
+
+  tableSections.forEach(s => {
+    if (s.data && s.data.length > 0) {
+      html += `<div class="detail-card full">
+        <div class="detail-card-label">${s.label}</div>
+        <div class="review-table-wrap">
+          <table class="review-table">
+            <thead><tr>${s.headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+            <tbody>${s.data.map(row => `<tr>${row.map(cell => `<td>${escHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+  });
+
+  if (p.syllabusCourses && p.syllabusCourses.length > 0) {
+    p.syllabusCourses.forEach((course, i) => {
+      let courseHtml = `<div class="detail-card full">
+        <div class="detail-card-label">Course ${i+1}: ${escHtml(course.title)}</div>`;
+      if (course.outcomes && course.outcomes.length > 0) {
+        courseHtml += `<div class="review-table-wrap" style="margin-bottom:10px;">
+          <table class="review-table">
+            <thead><tr><th>CO Code</th><th>Description</th><th>PO Mapping</th></tr></thead>
+            <tbody>${course.outcomes.map(row => `<tr>${row.map(cell => `<td>${escHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      }
+      if (course.topics) courseHtml += `<div style="margin-bottom:8px;"><span style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Lecture Topics</span><div class="detail-card-value" style="margin-top:4px;">${escHtml(course.topics)}</div></div>`;
+      if (course.labWork) courseHtml += `<div><span style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Lab Work</span><div class="detail-card-value" style="margin-top:4px;">${escHtml(course.labWork)}</div></div>`;
+      courseHtml += `</div>`;
+      html += courseHtml;
+    });
+  }
+
+  document.getElementById('detailGrid').innerHTML = html || '<div class="detail-card full"><div class="detail-card-value"><em style="color:var(--muted)">No details available.</em></div></div>';
 
   resetChat();
 }
@@ -369,7 +483,7 @@ async function setDecision(decision) {
   showToast(label, decision === 'approved' ? 'var(--green)' : 'var(--red)');
 
   try {
-    await fetch(`http://localhost:5000/Questions/${proposal._id}`, {
+    await fetch(`http://localhost:5000/proposals/${proposal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: decision })
@@ -407,18 +521,18 @@ function summarizeProposal() {
   }
 
   const sections = [
-    { title:'Project Title',         body:p.proposalTitle },
-    { title:'Student',               body:`${p.studentName} (${p.studentId}) · ${p.department} · ${p.academicYear}` },
+    { title:'Project Title',          body:p.proposalTitle },
+    { title:'Student',                body:`${p.studentName} (${p.studentId}) · ${p.department} · ${p.academicYear}` },
     { title:'Project Type & Duration',body:`${p.projectType} · ${p.duration}` },
-    { title:'Introduction',          body:p.introduction },
-    { title:'Problem Statement',     body:p.problemStatement },
-    { title:'Objectives',            body:p.objectives },
-    { title:'Scope of Work',         body:p.scopeOfWork },
-    { title:'Methodologies',         body:p.methodologies },
-    { title:'Tools & Technologies',  body:p.tools },
-    { title:'Team Composition',      body:p.teamComposition },
-    { title:'Expected Outcome',      body:p.expectedOutcome },
-    { title:'Future Enhancements',   body:p.futureEnhancements },
+    { title:'Introduction',           body:p.introduction },
+    { title:'Problem Statement',      body:p.problemStatement },
+    { title:'Objectives',             body:p.objectives },
+    { title:'Scope of Work',          body:p.scopeOfWork },
+    { title:'Methodologies',          body:p.methodologies },
+    { title:'Tools & Technologies',   body:p.tools },
+    { title:'Team Composition',       body:p.teamComposition },
+    { title:'Expected Outcome',       body:p.expectedOutcome },
+    { title:'Future Enhancements',    body:p.futureEnhancements },
     ...(p.references ? [{ title:'References', body:p.references }] : []),
   ];
 
@@ -697,4 +811,94 @@ function showUploadStatus(text, percent) {
   status.style.display = 'block';
   bar.style.width      = percent + '%';
   label.textContent    = text;
+}
+
+/* ─────────────────────────────
+   ACCORDION
+───────────────────────────── */
+function toggleAccordion(id) {
+  const section = document.getElementById(id);
+  const isOpen  = section.classList.contains('open');
+  section.classList.toggle('open', !isOpen);
+}
+
+function openAccordion(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+
+/* ─────────────────────────────
+   DYNAMIC TABLE ROWS
+───────────────────────────── */
+function addRow(tbodyId, headers) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+
+  headers.forEach(h => {
+    const td = document.createElement('td');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = h;
+    td.appendChild(input);
+    tr.appendChild(td);
+  });
+
+  const tdDel = document.createElement('td');
+  tdDel.style.width = '32px';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn-del-row';
+  btn.textContent = '✕';
+  btn.onclick = () => tr.remove();
+  tdDel.appendChild(btn);
+  tr.appendChild(tdDel);
+
+  tbody.appendChild(tr);
+}
+
+/* ─────────────────────────────
+   SYLLABUS COURSES
+───────────────────────────── */
+let syllabusCourseCount = 0;
+
+function addSyllabusCourse() {
+  syllabusCourseCount++;
+  const idx     = syllabusCourseCount;
+  const wrap    = document.getElementById('syllabus-courses');
+  const tbodyId = `syllabus-co-body-${idx}`;
+
+  const div = document.createElement('div');
+  div.className = 'syllabus-course';
+  div.id = `syllabus-course-${idx}`;
+
+  div.innerHTML = `
+    <div class="syllabus-course-header">
+      <span class="syllabus-course-num">Course ${idx}</span>
+      <input class="syllabus-course-title-input" type="text" placeholder="Course title (e.g. Foundations of Library Technology — 40 Hours | 1 Credit)" />
+      <button type="button" class="btn-del-course" onclick="document.getElementById('syllabus-course-${idx}').remove()">✕ Remove</button>
+    </div>
+
+    <div class="acc-sub-label" style="font-size:10px;margin-bottom:8px;">Course Outcomes</div>
+    <div class="table-wrap" style="margin-bottom:12px;">
+      <table class="dynamic-table">
+        <thead>
+          <tr><th>CO Code</th><th>Description</th><th>PO Mapping</th><th></th></tr>
+        </thead>
+        <tbody id="${tbodyId}"></tbody>
+      </table>
+      <button type="button" class="btn-add-row" onclick="addRow('${tbodyId}', ['CO Code','Description','PO Mapping'])">+ Add Course Outcome</button>
+    </div>
+
+    <div class="field">
+      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Lecture Topics</label>
+      <textarea class="syllabus-topics" rows="4" placeholder="List the lecture topics for this course…"></textarea>
+    </div>
+
+    <div class="field" style="margin-top:8px;">
+      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Laboratory / Practical Component</label>
+      <textarea class="syllabus-lab" rows="3" placeholder="Describe the lab sessions and practical exercises…"></textarea>
+    </div>
+  `;
+
+  wrap.appendChild(div);
 }

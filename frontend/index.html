@@ -18,8 +18,9 @@
       <button class="btn-logout" onclick="logout()">↩ Logout</button>
     </div>
   </header>
+
   <!-- ════════════════════════════════
-       CATEGORY SELECTION SCREEN
+       CATEGORY SELECTION PAGE
   ════════════════════════════════ -->
   <section class="page" id="page-category">
     <div class="category-wrap">
@@ -27,68 +28,62 @@
       <div class="page-hero">
         <p class="eyebrow">Step 1 of 2</p>
         <h1 class="page-heading">Select <span>Proposal Category</span></h1>
-        <p class="page-sub">Choose the category that best fits your proposal before proceeding.</p>
+        <p class="page-sub">Choose the category that best describes your proposal.</p>
       </div>
 
       <div class="category-cards">
-
         <div class="cat-card" data-cat="1" onclick="selectCategory(this)">
           <div class="cat-card-num">I</div>
           <div class="cat-card-info">
-            <div class="cat-card-title">Diploma / Post-Graduate Diploma</div>
-            <div class="cat-card-desc">Category I programs</div>
+            <div class="cat-card-title">Diploma / Post-Graduate Diploma Programs</div>
+            <div class="cat-card-desc">Category I</div>
           </div>
           <div class="cat-card-check">✓</div>
         </div>
-
         <div class="cat-card" data-cat="2" onclick="selectCategory(this)">
           <div class="cat-card-num">II</div>
           <div class="cat-card-info">
             <div class="cat-card-title">EEP — Executive Education Programs</div>
-            <div class="cat-card-desc">Category II programs</div>
+            <div class="cat-card-desc">Category II</div>
           </div>
           <div class="cat-card-check">✓</div>
         </div>
-
         <div class="cat-card" data-cat="3" onclick="selectCategory(this)">
           <div class="cat-card-num">III</div>
           <div class="cat-card-info">
             <div class="cat-card-title">FDP — Faculty Development Programs</div>
-            <div class="cat-card-desc">Category III programs</div>
+            <div class="cat-card-desc">Category III</div>
           </div>
           <div class="cat-card-check">✓</div>
         </div>
-
         <div class="cat-card" data-cat="4" onclick="selectCategory(this)">
           <div class="cat-card-num">IV</div>
           <div class="cat-card-info">
             <div class="cat-card-title">Seminars / Conclaves / Workshops</div>
-            <div class="cat-card-desc">Category IV programs</div>
+            <div class="cat-card-desc">Category IV</div>
           </div>
           <div class="cat-card-check">✓</div>
         </div>
-
         <div class="cat-card" data-cat="5" onclick="selectCategory(this)">
           <div class="cat-card-num">V</div>
           <div class="cat-card-info">
             <div class="cat-card-title">Conferences</div>
-            <div class="cat-card-desc">Category V programs</div>
+            <div class="cat-card-desc">Category V</div>
           </div>
           <div class="cat-card-check">✓</div>
         </div>
-
       </div>
 
       <div class="category-footer">
         <p class="cat-error" id="catError"></p>
-        <button class="btn-next" onclick="proceedToForm()">Continue to Proposal Form →</button>
+        <button class="btn-next" onclick="proceedToForm()">Continue →</button>
       </div>
 
     </div>
   </section>
 
   <!-- ════════════════════════════════
-       PAGE 1 — STUDENT SUBMISSION
+       PAGE — ACCORDION FORM (Cat II–V)
   ════════════════════════════════ -->
   <section class="page" id="page-student">
     <div class="student-wrap">
@@ -96,242 +91,226 @@
       <div class="page-hero">
         <p class="eyebrow">Student Portal</p>
         <h1 class="page-heading">Submit Your <span>Project Proposal</span></h1>
-        <p class="page-sub">Fill in the sections below or upload a document to auto-fill.</p>
+        <p class="page-sub">Fill in each section below. Click a section to expand it.</p>
       </div>
-
-      
 
       <!-- ── FILE UPLOAD AUTO-FILL ── -->
       <div class="upload-zone" id="uploadZone">
         <div class="upload-icon">📎</div>
         <div class="upload-text">
           <strong>Auto-fill from document</strong>
-          <span>Drag & drop or click to upload a PDF, Word, or TXT file</span>
+          <span>Drag &amp; drop or click to upload a PDF, Word, or TXT file</span>
         </div>
         <input type="file" id="fileUpload" accept=".pdf,.doc,.docx,.txt" hidden />
         <button type="button" class="btn-upload" onclick="document.getElementById('fileUpload').click()">Choose File</button>
       </div>
-
-      <!-- Upload status -->
       <div class="upload-status" id="uploadStatus" style="display:none">
-        <div class="upload-progress">
-          <div class="upload-progress-bar" id="uploadProgressBar"></div>
-        </div>
+        <div class="upload-progress"><div class="upload-progress-bar" id="uploadProgressBar"></div></div>
         <p class="upload-status-text" id="uploadStatusText">Reading file…</p>
-      </div>
-
-      <!-- Step indicator -->
-      <div class="step-bar">
-        <div class="step active" data-step="1"><span>1</span> Basic Info</div>
-        <div class="step-line"></div>
-        <div class="step" data-step="2"><span>2</span> Problem & Goals</div>
-        <div class="step-line"></div>
-        <div class="step" data-step="3"><span>3</span> Methodology</div>
-        <div class="step-line"></div>
-        <div class="step" data-step="4"><span>4</span> Outcomes</div>
       </div>
 
       <form id="proposalForm" novalidate>
 
-        <!-- ── STEP 1: Basic Info ── -->
-        <div class="form-step active" id="step-1">
-          <div class="section-label">Step 1 of 4 — Basic Information</div>
-
-          <div class="form-grid-2">
-            <div class="field">
-              <label>Student Name <span class="req">*</span></label>
-              <input type="text" id="studentName" placeholder="e.g. Arun Kumar" />
-            </div>
-            <div class="field">
-              <label>Student ID <span class="req">*</span></label>
-              <input type="text" id="studentId" placeholder="e.g. CS2024001" />
-            </div>
+        <!-- ══ SECTION 1 ══ -->
+        <div class="accordion-section" id="acc-1">
+          <div class="accordion-header" onclick="toggleAccordion('acc-1')">
+            <div class="accordion-title"><span class="acc-num">1</span><span>Introduction &amp; Overview</span></div>
+            <div class="accordion-meta" id="acc-1-meta"></div>
+            <span class="accordion-arrow">▸</span>
           </div>
-
-          <div class="form-grid-2">
-            <div class="field">
-              <label>Department <span class="req">*</span></label>
-              <select id="department">
-                <option value="">Select department…</option>
-                <option>Computer Science & Engineering</option>
-                <option>Information Technology</option>
-                <option>Electronics & Communication</option>
-                <option>Mechanical Engineering</option>
-                <option>Civil Engineering</option>
-                <option>Data Science & AI</option>
-              </select>
+          <div class="accordion-body">
+            <div class="acc-subsection">
+              <div class="acc-sub-label">Basic Information</div>
+              <div class="form-grid-2">
+                <div class="field"><label>Programme Name <span class="req">*</span></label><input type="text" id="programmeName" placeholder="e.g. Certificate Course in Library Technology" /></div>
+                <div class="field"><label>Submitted By <span class="req">*</span></label><input type="text" id="submittedBy" placeholder="e.g. Dr. Gopakumar V" /></div>
+              </div>
+              <div class="form-grid-2">
+                <div class="field"><label>Designation / Department <span class="req">*</span></label><input type="text" id="designation" placeholder="e.g. Head, Knowledge Centre" /></div>
+                <div class="field"><label>Submission Date <span class="req">*</span></label><input type="date" id="submissionDate" /></div>
+              </div>
+              <div class="form-grid-2">
+                <div class="field"><label>Submitted To <span class="req">*</span></label><input type="text" id="submittedTo" placeholder="e.g. Centre for Executive Education and Continuing Studies (CEECS)" /></div>
+                <div class="field"><label>CEECS Category <span class="req">*</span></label>
+                  <select id="ceecsCat">
+                    <option value="">Select category…</option>
+                    <option>Category I — Diploma / PG Diploma</option>
+                    <option>Category II — EEP (Executive Education Programme)</option>
+                    <option>Category III — FDP (Faculty Development Programme)</option>
+                    <option>Category IV — Seminars / Conclaves / Workshops</option>
+                    <option>Category V — Conferences</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div class="field">
-              <label>Academic Year <span class="req">*</span></label>
-              <select id="academicYear">
-                <option value="">Select year…</option>
-                <option>2024–25</option>
-                <option>2025–26</option>
-                <option>2026–27</option>
-              </select>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.1 About the Programme</div>
+              <div class="field"><textarea id="aboutProgramme" rows="5" placeholder="Describe the programme — its purpose, target audience, delivery mode, credits, and certification details."></textarea></div>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Proposal Title <span class="req">*</span></label>
-            <input type="text" id="proposalTitle" placeholder="e.g. AI-Powered Smart Attendance System using Facial Recognition" />
-          </div>
-
-          <div class="form-grid-2">
-            <div class="field">
-              <label>Project Type <span class="req">*</span></label>
-              <select id="projectType">
-                <option value="">Select type…</option>
-                <option>Research</option>
-                <option>Development</option>
-                <option>Industry Collaboration</option>
-                <option>Open Source</option>
-                <option>Social Impact</option>
-              </select>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.2 Eligibility Criteria</div>
+              <div class="field"><textarea id="eligibility" rows="4" placeholder="List eligibility criteria for applicants (qualifications, experience, etc.)"></textarea></div>
             </div>
-            <div class="field">
-              <label>Estimated Duration <span class="req">*</span></label>
-              <select id="duration">
-                <option value="">Select…</option>
-                <option>1 Month</option>
-                <option>2 Months</option>
-                <option>3 Months</option>
-                <option>6 Months</option>
-                <option>1 Year</option>
-              </select>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.3 Programme Duration &amp; Mode</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-duration"><thead><tr><th>Parameter</th><th>Details</th><th></th></tr></thead><tbody id="tbl-duration-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-duration-body', ['Parameter','Details'])">+ Add Row</button>
+              </div>
             </div>
-          </div>
-
-          <div class="step-actions">
-            <div></div>
-            <button type="button" class="btn-next" onclick="nextStep(1)">Next: Problem & Goals →</button>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.4 Programme Fee</div>
+              <div class="field"><textarea id="programmeFee" rows="3" placeholder="Describe the programme fee, payment schedule, and what it includes."></textarea></div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.5 Objectives of the Programme</div>
+              <div class="field"><textarea id="objectives1" rows="5" placeholder="List the key objectives of the programme."></textarea></div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">1.6 Benefits to Students</div>
+              <div class="field"><textarea id="benefits" rows="5" placeholder="Describe the academic, professional, and career benefits to students."></textarea></div>
+            </div>
           </div>
         </div>
 
-        <!-- ── STEP 2: Problem & Goals ── -->
-        <div class="form-step" id="step-2">
-          <div class="section-label">Step 2 of 4 — Problem & Goals</div>
-
-          <div class="field">
-            <label>Introduction <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="introduction" rows="4" maxlength="800" placeholder="Briefly introduce your project."></textarea>
-              <span class="char-count" id="cnt-intro">0 / 800</span>
-            </div>
+        <!-- ══ SECTION 2 ══ -->
+        <div class="accordion-section" id="acc-2">
+          <div class="accordion-header" onclick="toggleAccordion('acc-2')">
+            <div class="accordion-title"><span class="acc-num">2</span><span>Course Structure</span></div>
+            <div class="accordion-meta" id="acc-2-meta"></div>
+            <span class="accordion-arrow">▸</span>
           </div>
-
-          <div class="field">
-            <label>Problem Statement <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="problemStatement" rows="4" maxlength="800" placeholder="Describe the specific problem your project addresses."></textarea>
-              <span class="char-count" id="cnt-prob">0 / 800</span>
+          <div class="accordion-body">
+            <div class="acc-subsection">
+              <div class="acc-sub-label">2.1 Curriculum Overview</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-curriculum"><thead><tr><th>No.</th><th>Course Title</th><th>Level</th><th>Hours</th><th>Credits</th><th></th></tr></thead><tbody id="tbl-curriculum-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-curriculum-body', ['No.','Course Title','Level','Hours','Credits'])">+ Add Course</button>
+              </div>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Objectives <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="objectives" rows="4" maxlength="600" placeholder="List the key objectives of your project."></textarea>
-              <span class="char-count" id="cnt-obj">0 / 600</span>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">2.2 Programme Outcomes (POs)</div>
+              <div class="field"><textarea id="programmeOutcomes" rows="6" placeholder="List all Programme Outcomes (PO1, PO2, … with descriptions)."></textarea></div>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Scope of Work <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="scopeOfWork" rows="4" maxlength="600" placeholder="Define what is in-scope and out-of-scope."></textarea>
-              <span class="char-count" id="cnt-scope">0 / 600</span>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">2.3 Detailed Syllabus</div>
+              <div id="syllabus-courses"></div>
+              <button type="button" class="btn-add-course" onclick="addSyllabusCourse()">+ Add Course</button>
             </div>
-          </div>
-
-          <div class="step-actions">
-            <button type="button" class="btn-back" onclick="prevStep(2)">← Back</button>
-            <button type="button" class="btn-next" onclick="nextStep(2)">Next: Methodology →</button>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">2.4 Assessment Scheme</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-assessment"><thead><tr><th>Assessment Type</th><th>Components</th><th>Weightage</th><th>Mode</th><th></th></tr></thead><tbody id="tbl-assessment-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-assessment-body', ['Assessment Type','Components','Weightage','Mode'])">+ Add Row</button>
+              </div>
+              <div class="field" style="margin-top:12px"><label>Assessment Notes</label><textarea id="assessmentNotes" rows="4" placeholder="Any important notes on assessment norms, attendance, grading, etc."></textarea></div>
+            </div>
           </div>
         </div>
 
-        <!-- ── STEP 3: Methodology ── -->
-        <div class="form-step" id="step-3">
-          <div class="section-label">Step 3 of 4 — Methodology</div>
-
-          <div class="field">
-            <label>Methodologies <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="methodologies" rows="5" maxlength="800" placeholder="Describe the methodologies you will follow."></textarea>
-              <span class="char-count" id="cnt-meth">0 / 800</span>
+        <!-- ══ SECTION 3 ══ -->
+        <div class="accordion-section" id="acc-3">
+          <div class="accordion-header" onclick="toggleAccordion('acc-3')">
+            <div class="accordion-title"><span class="acc-num">3</span><span>Plan of Execution</span></div>
+            <div class="accordion-meta" id="acc-3-meta"></div>
+            <span class="accordion-arrow">▸</span>
+          </div>
+          <div class="accordion-body">
+            <div class="acc-subsection">
+              <div class="acc-sub-label">3.1 Organising Structure</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-orgstructure"><thead><tr><th>Role</th><th>Responsibility</th><th></th></tr></thead><tbody id="tbl-orgstructure-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-orgstructure-body', ['Role','Responsibility'])">+ Add Row</button>
+              </div>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Tools & Technologies <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="tools" rows="3" maxlength="400" placeholder="e.g. Python, TensorFlow, React, PostgreSQL…"></textarea>
-              <span class="char-count" id="cnt-tools">0 / 400</span>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">3.2 Programme Timeline &amp; Key Dates</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-timeline"><thead><tr><th>No.</th><th>Milestone / Activity</th><th>Tentative Date</th><th></th></tr></thead><tbody id="tbl-timeline-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-timeline-body', ['No.','Milestone / Activity','Tentative Date'])">+ Add Milestone</button>
+              </div>
             </div>
-          </div>
-
-          <div class="field">
-            <label>Team Composition <span class="req">*</span></label>
-            <input type="text" id="teamComposition" placeholder="e.g. 3 members — 1 ML Engineer, 1 Backend Dev, 1 UI/UX Designer" />
-          </div>
-
-          <div class="step-actions">
-            <button type="button" class="btn-back" onclick="prevStep(3)">← Back</button>
-            <button type="button" class="btn-next" onclick="nextStep(3)">Next: Outcomes →</button>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">3.3 Programme Coordinator Responsibilities</div>
+              <div class="field"><textarea id="coordinatorResp" rows="5" placeholder="List the responsibilities of the Programme Coordinator."></textarea></div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">3.4 Application &amp; Selection Process</div>
+              <div class="field"><textarea id="selectionProcess" rows="4" placeholder="Describe how applications will be invited and how participants will be selected."></textarea></div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">3.5 Infrastructure &amp; Support</div>
+              <div class="field"><textarea id="infrastructure" rows="4" placeholder="Describe the infrastructure, software, and support available for the programme."></textarea></div>
+            </div>
           </div>
         </div>
 
-        <!-- ── STEP 4: Outcomes ── -->
-        <div class="form-step" id="step-4">
-          <div class="section-label">Step 4 of 4 — Outcomes & Enhancements</div>
-
-          <div class="field">
-            <label>Expected Outcome <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="expectedOutcome" rows="4" maxlength="600" placeholder="What deliverables and results do you expect?"></textarea>
-              <span class="char-count" id="cnt-out">0 / 600</span>
+        <!-- ══ SECTION 4 ══ -->
+        <div class="accordion-section" id="acc-4">
+          <div class="accordion-header" onclick="toggleAccordion('acc-4')">
+            <div class="accordion-title"><span class="acc-num">4</span><span>Tentative Budget</span></div>
+            <div class="accordion-meta" id="acc-4-meta"></div>
+            <span class="accordion-arrow">▸</span>
+          </div>
+          <div class="accordion-body">
+            <div class="acc-subsection">
+              <div class="acc-sub-label">4.1 Revenue Projection</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-revenue"><thead><tr><th>Parameter</th><th>Value</th><th></th></tr></thead><tbody id="tbl-revenue-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-revenue-body', ['Parameter','Value'])">+ Add Row</button>
+              </div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">4.2 Expenditure Estimate</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-expenditure"><thead><tr><th>No.</th><th>Expenditure Head</th><th>Estimated Amount (Rs.)</th><th></th></tr></thead><tbody id="tbl-expenditure-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-expenditure-body', ['No.','Expenditure Head','Estimated Amount'])">+ Add Row</button>
+              </div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">4.3 Revenue Distribution</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-revdist"><thead><tr><th>S.No</th><th>Component</th><th>Norm</th><th>Rate</th><th>Amount (Rs.)</th><th></th></tr></thead><tbody id="tbl-revdist-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-revdist-body', ['S.No','Component','Norm','Rate','Amount'])">+ Add Row</button>
+              </div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">4.4 Guest Faculty Honorarium</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-honorarium"><thead><tr><th>Category of Resource Person</th><th>Rate</th><th></th></tr></thead><tbody id="tbl-honorarium-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-honorarium-body', ['Category of Resource Person','Rate'])">+ Add Row</button>
+              </div>
+            </div>
+            <div class="acc-subsection">
+              <div class="acc-sub-label">4.5 Break-even Analysis</div>
+              <div class="table-wrap">
+                <table class="dynamic-table" id="tbl-breakeven"><thead><tr><th>Parameter</th><th>Value</th><th></th></tr></thead><tbody id="tbl-breakeven-body"></tbody></table>
+                <button type="button" class="btn-add-row" onclick="addRow('tbl-breakeven-body', ['Parameter','Value'])">+ Add Row</button>
+              </div>
+              <div class="field" style="margin-top:12px"><label>Notes &amp; Assumptions</label><textarea id="budgetNotes" rows="4" placeholder="Any key assumptions or notes about the budget."></textarea></div>
             </div>
           </div>
+        </div>
 
-          <div class="field">
-            <label>Future Enhancements <span class="req">*</span></label>
-            <div class="char-wrap">
-              <textarea id="futureEnhancements" rows="4" maxlength="600" placeholder="What improvements can be made in the future?"></textarea>
-              <span class="char-count" id="cnt-fut">0 / 600</span>
-            </div>
-          </div>
-
-          <div class="field">
-            <label>References / Bibliography</label>
-            <div class="char-wrap">
-              <textarea id="references" rows="3" maxlength="500" placeholder="List any papers, articles, or resources referenced (optional)."></textarea>
-              <span class="char-count" id="cnt-ref">0 / 500</span>
-            </div>
-          </div>
-
-          <div class="declaration-box">
-            <label class="check-label">
-              <input type="checkbox" id="declaration" />
-              <span>I declare that this proposal is my original work and all information provided is accurate and complete.</span>
-            </label>
-          </div>
-
-          <div class="step-actions">
-            <button type="button" class="btn-back" onclick="prevStep(4)">← Back</button>
-            <button type="submit" class="btn-submit" id="submitBtn">
-              <span class="btn-text">Submit Proposal</span>
-              <span class="btn-icon">🚀</span>
-            </button>
-          </div>
+        <div class="declaration-box" style="margin-top:24px">
+          <label class="check-label">
+            <input type="checkbox" id="declaration" />
+            <span>I declare that this proposal is my original work and all information provided is accurate and complete.</span>
+          </label>
+        </div>
+        <div class="submit-row">
+          <button type="submit" class="btn-submit" id="submitBtn">
+            <span class="btn-text">Submit Proposal</span>
+            <span class="btn-icon">🚀</span>
+          </button>
         </div>
 
       </form>
 
-      <!-- Success Banner -->
       <div class="success-banner" id="successBanner" style="display:none">
         <div class="success-icon">✅</div>
         <h2>Proposal Submitted!</h2>
-        <p>Your proposal has been received and is now pending faculty review.</p>
+        <p>Your proposal has been received and is now pending review.</p>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
           <button class="btn-next" onclick="switchPage('faculty')">View Faculty Dashboard →</button>
           <button class="btn-back" onclick="resetForm()" style="padding:12px 28px;">+ Submit Another Proposal</button>
@@ -341,53 +320,35 @@
     </div>
   </section>
 
-
   <!-- ════════════════════════════════
-       PAGE 2 — FACULTY REVIEW
+       PAGE — FACULTY REVIEW
   ════════════════════════════════ -->
   <section class="page" id="page-faculty">
     <div class="faculty-wrap">
 
-      <!-- ── SIDEBAR ── -->
       <div class="faculty-sidebar">
         <div class="sidebar-head">
           <p class="eyebrow" style="color:var(--accent)">Faculty Portal</p>
           <h2 class="sidebar-title">Submitted<br/>Proposals</h2>
         </div>
-
-        <!-- Pending -->
         <div class="sidebar-section-label">🕐 Pending</div>
-        <div class="proposal-list" id="listPending">
-          <div class="empty-list">No pending proposals.</div>
-        </div>
-
-        <!-- Approved -->
+        <div class="proposal-list" id="listPending"><div class="empty-list">No pending proposals.</div></div>
         <div class="sidebar-section-label approved">✅ Approved</div>
-        <div class="proposal-list" id="listApproved">
-          <div class="empty-list">No approved proposals.</div>
-        </div>
-
-        <!-- Not Approved -->
+        <div class="proposal-list" id="listApproved"><div class="empty-list">No approved proposals.</div></div>
         <div class="sidebar-section-label rejected">❌ Not Approved</div>
-        <div class="proposal-list" id="listRejected">
-          <div class="empty-list">No rejected proposals.</div>
-        </div>
+        <div class="proposal-list" id="listRejected"><div class="empty-list">No rejected proposals.</div></div>
       </div>
 
-      <!-- ── MAIN PANEL ── -->
       <div class="faculty-main" id="facultyMain">
 
-        <!-- Empty state -->
         <div class="empty-state" id="emptyState">
           <div class="empty-icon">📋</div>
           <h3>Select a Proposal</h3>
           <p>Choose a proposal from the sidebar to review it here.</p>
         </div>
 
-        <!-- Review panel -->
         <div class="review-panel" id="reviewPanel" style="display:none">
 
-          <!-- Proposal Header -->
           <div class="review-header">
             <div>
               <div class="proposal-badge" id="rv-badge">Research</div>
@@ -403,17 +364,10 @@
             <div class="status-pill" id="rv-status">Pending</div>
           </div>
 
-          <!-- Detail Cards -->
-          <div class="detail-grid" id="detailGrid"></div>
-
-          <!-- Action Toolbar -->
+          <!-- Action Toolbar — placed BEFORE detail grid so it's always visible -->
           <div class="action-toolbar">
-            <button class="btn-tool" id="btnSummarize" onclick="summarizeProposal()">
-              📝 Summarize Proposal
-            </button>
-            <button class="btn-tool" id="btnChatbot" onclick="toggleChatbot()">
-              🤖 Check with AI
-            </button>
+            <button class="btn-tool" id="btnSummarize" onclick="summarizeProposal()">📝 Summarize Proposal</button>
+            <button class="btn-tool" id="btnChatbot" onclick="toggleChatbot()">🤖 Check with AI</button>
             <div class="divider-v"></div>
             <button class="btn-approve" onclick="setDecision('approved')">✅ Approve</button>
             <button class="btn-reject"  onclick="setDecision('rejected')">❌ Not Approved</button>
@@ -445,6 +399,9 @@
               <button class="btn-send" onclick="sendChat()">Send ↑</button>
             </div>
           </div>
+
+          <!-- Detail Cards -->
+          <div class="detail-grid" id="detailGrid"></div>
 
         </div>
       </div>
