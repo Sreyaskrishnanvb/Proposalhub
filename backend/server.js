@@ -10,6 +10,10 @@ const app    = express();
 const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const SECRET = process.env.JWT_SECRET;
 
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+
+console.log(`[Groq] Using model: ${GROQ_MODEL}`);
+
 app.use(cors());
 app.use(express.json());
 
@@ -27,7 +31,57 @@ A proposal meets company standard if it has:
 10. References cited
 `;
 
-// ── REGISTER
+// ── GROQ HELPER with retry + rate limit handling ──────────────
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+ 
+function parseRetryAfterMs(err) {
+  try {
+    const msg = err?.error?.error?.message || err?.message || '';
+    const m   = msg.match(/try again in\s+([\d.]+)s/i);
+    if (m) return { ms: Math.ceil(parseFloat(m[1]) * 1000) + 1500, secs: Math.ceil(parseFloat(m[1])) + 2 };
+  } catch (_) {}
+  return null;
+}
+ 
+async function groqChat(messages, maxTokens = 2000) {
+  const MAX_RETRIES = 4;
+  const BASE_DELAY  = 6000;
+ 
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const completion = await groq.chat.completions.create({
+        model:      GROQ_MODEL,
+        max_tokens: maxTokens,
+        messages,
+      });
+      return completion.choices[0].message.content;
+    } catch (err) {
+      const status  = err?.status;
+      const code    = err?.error?.error?.code || err?.code;
+      const parsed  = parseRetryAfterMs(err);
+      const retryMs = parsed?.ms || BASE_DELAY * Math.pow(2, attempt);
+ 
+      console.error(`[Groq] Attempt ${attempt + 1} failed — status:${status} code:${code}`);
+ 
+      if ((status === 429 || code === 'rate_limit_exceeded') && attempt < MAX_RETRIES - 1) {
+        console.log(`[Groq] Rate limit — waiting ${Math.round(retryMs/1000)}s…`);
+        await sleep(retryMs);
+        continue;
+      }
+ 
+      // Attach the parsed retry seconds so the route can forward it
+      if (parsed) err._retryAfterSecs = parsed.secs;
+      throw err;
+    }
+  }
+  const e = new Error('Groq: max retries exceeded');
+  e._retryAfterSecs = 60;
+  throw e;
+}
+
+// ── REGISTER ──────────────────────────────────────────────────
 app.post('/register', async (req, res) => {
   const { username, email, password, course, doj, role } = req.body;
   try {
@@ -36,13 +90,13 @@ app.post('/register', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     await User.create({ username, email, password: hashed, course, doj, role });
     res.json({ message: 'Registered successfully' });
-  } catch(err) {
+  } catch (err) {
     console.log(err);
     res.status(500).json({ error: 'Server error during registration' });
   }
 });
 
-// ── LOGIN
+// ── LOGIN ─────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   const { username, password, course, role } = req.body;
   try {
@@ -56,13 +110,13 @@ app.post('/login', async (req, res) => {
       { expiresIn: '1d' }
     );
     res.json({ token, username: user.username, role: user.role });
-  } catch(err) {
+  } catch (err) {
     console.log(err);
     res.status(500).json({ error: 'Server error during login' });
   }
 });
 
-// ── SUBMIT PROPOSAL
+// ── SUBMIT PROPOSAL ───────────────────────────────────────────
 app.post('/proposals', async (req, res) => {
   const { courseStructure, timeline, budget, ...proposalData } = req.body;
   try {
@@ -78,13 +132,13 @@ app.post('/proposals', async (req, res) => {
       await Budget.bulkCreate(budget.map(r => ({ ...r, proposalId: proposal.id })));
 
     res.json({ message: 'Proposal submitted', id: proposal.id });
-  } catch(err) {
+  } catch (err) {
     console.log(err);
     res.status(500).json({ error: 'Error saving proposal' });
   }
 });
 
-// ── GET ALL PROPOSALS
+// ── GET ALL PROPOSALS ─────────────────────────────────────────
 app.get('/proposals', async (req, res) => {
   try {
     const proposals = await Proposal.findAll({
@@ -96,24 +150,24 @@ app.get('/proposals', async (req, res) => {
       ]
     });
     res.json(proposals);
-  } catch(err) {
+  } catch (err) {
     console.log(err);
     res.status(500).json({ error: 'Error fetching proposals' });
   }
 });
 
-// ── UPDATE STATUS
+// ── UPDATE STATUS ─────────────────────────────────────────────
 app.patch('/proposals/:id', async (req, res) => {
   try {
     await Proposal.update({ status: req.body.status }, { where: { id: req.params.id } });
     res.json({ message: 'Status updated' });
-  } catch(err) {
+  } catch (err) {
     console.log(err);
     res.status(500).json({ error: 'Error updating status' });
   }
 });
 
-// ── VERIFY TOKEN
+// ── VERIFY TOKEN ──────────────────────────────────────────────
 app.get('/verify', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
@@ -125,7 +179,7 @@ app.get('/verify', (req, res) => {
   }
 });
 
-// ── CHAT
+// ── CHAT ──────────────────────────────────────────────────────
 app.post('/chat', async (req, res) => {
   const { proposalId, message } = req.body;
   try {
@@ -148,36 +202,51 @@ Faculty question: "${message}"
 Answer professionally and reference the actual proposal content.
 `;
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ reply: completion.choices[0].message.content });
-  } catch(err) {
-    console.log(err);
-    res.status(500).json({ reply: 'Error contacting AI.' });
+    const reply = await groqChat([{ role: 'user', content: prompt }], 1000);
+    res.json({ reply });
+  } catch (err) {
+    console.error('[/chat]', err?.message || err);
+    res.status(500).json({ reply: 'Error contacting AI. Please try again in a moment.' });
   }
 });
 
-// ── EXTRACT
+// ── EXTRACT ───────────────────────────────────────────────────
 app.post('/extract', async (req, res) => {
   const { prompt } = req.body;
   try {
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ result: completion.choices[0].message.content });
-  } catch(err) {
-    console.log(err);
+    const result = await groqChat([{ role: 'user', content: prompt }], 8000);
+    res.json({ result });
+  } catch (err) {
+    console.error('[/extract]', err?.message || err);
+ 
+    const status = err?.status;
+    const code   = err?.error?.error?.code || err?.code;
+ 
+    if (status === 429 || status === 413 || code === 'rate_limit_exceeded') {
+      // Parse Groq's retry time and surface it to the browser
+      let retrySeconds = err._retryAfterSecs || 15;
+      try {
+        const msg = err?.error?.error?.message || err?.message || '';
+        const m   = msg.match(/try again in\s+([\d.]+)s/i);
+        if (m) retrySeconds = Math.ceil(parseFloat(m[1])) + 2;
+      } catch (_) {}
+ 
+      console.warn(`[/extract] Forwarding 429 — Retry-After: ${retrySeconds}s`);
+      return res
+        .status(429)
+        .set('Retry-After', String(retrySeconds))
+        .json({ result: '{}', retryAfter: retrySeconds });
+    }
+ 
+    // Generic server error
     res.status(500).json({ result: '{}' });
   }
 });
 
-// ── START SERVER
+// ── START SERVER ──────────────────────────────────────────────
 sequelize.sync({ alter: true })
   .then(() => {
-    app.listen(process.env.PORT || 5000, () => console.log('Server Running'));
-    console.log('PostgreSQL Connected & Tables Synced');
+    app.listen(process.env.PORT || 5000, () => console.log('Server running on port', process.env.PORT || 5000));
+    console.log('PostgreSQL connected & tables synced');
   })
   .catch(err => console.log('DB Error:', err));
