@@ -1,11 +1,9 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../db');
-
-const Timeline = sequelize.define('Timeline', {
-  proposalId:    { type: DataTypes.INTEGER, allowNull: false },
-  no:            { type: DataTypes.INTEGER },
-  milestone:     { type: DataTypes.STRING },
-  tentativeDate: { type: DataTypes.STRING },
-});
-
-module.exports = Timeline;
+module.exports = (sequelize, DataTypes) => {
+  return sequelize.define('Timeline', {
+    proposalId: DataTypes.INTEGER,
+    tableKey:   DataTypes.STRING,
+    rowIndex:   DataTypes.INTEGER,
+    colIndex:   DataTypes.INTEGER,
+    value:      DataTypes.TEXT,
+  });
+};

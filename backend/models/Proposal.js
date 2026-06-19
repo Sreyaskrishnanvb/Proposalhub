@@ -23,6 +23,23 @@ const Proposal = sequelize.define('Proposal', {
   references:         { type: DataTypes.TEXT },
   status:             { type: DataTypes.STRING, defaultValue: 'pending' },
   submittedAt:        { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  programmeName:      { type: DataTypes.STRING },
+  submittedBy:        { type: DataTypes.STRING },
+  designation:        { type: DataTypes.STRING },
+  submissionDate:     { type: DataTypes.STRING },
+  submittedTo:        { type: DataTypes.STRING },
+  aboutProgramme:     { type: DataTypes.TEXT },
+  eligibility:        { type: DataTypes.TEXT },
+  programmeFee:       { type: DataTypes.TEXT },
+  objectives1:        { type: DataTypes.TEXT },
+  benefits:           { type: DataTypes.TEXT },
+  programmeOutcomes:  { type: DataTypes.TEXT },
+  assessmentNotes:    { type: DataTypes.TEXT },
+  coordinatorResp:    { type: DataTypes.TEXT },
+  selectionProcess:   { type: DataTypes.TEXT },
+  infrastructure:     { type: DataTypes.TEXT },
+  budgetNotes:        { type: DataTypes.TEXT },
+  syllabusCourses:    { type: DataTypes.TEXT },
 });
 
 module.exports = Proposal;

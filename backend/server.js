@@ -10,10 +10,6 @@ const app    = express();
 const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const SECRET = process.env.JWT_SECRET;
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
-
-console.log(`[Groq] Using model: ${GROQ_MODEL}`);
-
 app.use(cors());
 app.use(express.json());
 
@@ -31,57 +27,7 @@ A proposal meets company standard if it has:
 10. References cited
 `;
 
-// ── GROQ HELPER with retry + rate limit handling ──────────────
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
- 
-function parseRetryAfterMs(err) {
-  try {
-    const msg = err?.error?.error?.message || err?.message || '';
-    const m   = msg.match(/try again in\s+([\d.]+)s/i);
-    if (m) return { ms: Math.ceil(parseFloat(m[1]) * 1000) + 1500, secs: Math.ceil(parseFloat(m[1])) + 2 };
-  } catch (_) {}
-  return null;
-}
- 
-async function groqChat(messages, maxTokens = 2000) {
-  const MAX_RETRIES = 4;
-  const BASE_DELAY  = 6000;
- 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const completion = await groq.chat.completions.create({
-        model:      GROQ_MODEL,
-        max_tokens: maxTokens,
-        messages,
-      });
-      return completion.choices[0].message.content;
-    } catch (err) {
-      const status  = err?.status;
-      const code    = err?.error?.error?.code || err?.code;
-      const parsed  = parseRetryAfterMs(err);
-      const retryMs = parsed?.ms || BASE_DELAY * Math.pow(2, attempt);
- 
-      console.error(`[Groq] Attempt ${attempt + 1} failed — status:${status} code:${code}`);
- 
-      if ((status === 429 || code === 'rate_limit_exceeded') && attempt < MAX_RETRIES - 1) {
-        console.log(`[Groq] Rate limit — waiting ${Math.round(retryMs/1000)}s…`);
-        await sleep(retryMs);
-        continue;
-      }
- 
-      // Attach the parsed retry seconds so the route can forward it
-      if (parsed) err._retryAfterSecs = parsed.secs;
-      throw err;
-    }
-  }
-  const e = new Error('Groq: max retries exceeded');
-  e._retryAfterSecs = 60;
-  throw e;
-}
-
-// ── REGISTER ──────────────────────────────────────────────────
+// ── REGISTER
 app.post('/register', async (req, res) => {
   const { username, email, password, course, doj, role } = req.body;
   try {
@@ -90,13 +36,13 @@ app.post('/register', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     await User.create({ username, email, password: hashed, course, doj, role });
     res.json({ message: 'Registered successfully' });
-  } catch (err) {
+  } catch(err) {
     console.log(err);
     res.status(500).json({ error: 'Server error during registration' });
   }
 });
 
-// ── LOGIN ─────────────────────────────────────────────────────
+// ── LOGIN
 app.post('/login', async (req, res) => {
   const { username, password, course, role } = req.body;
   try {
@@ -110,35 +56,67 @@ app.post('/login', async (req, res) => {
       { expiresIn: '1d' }
     );
     res.json({ token, username: user.username, role: user.role });
-  } catch (err) {
+  } catch(err) {
     console.log(err);
     res.status(500).json({ error: 'Server error during login' });
   }
 });
 
-// ── SUBMIT PROPOSAL ───────────────────────────────────────────
+// ── SUBMIT PROPOSAL
+// ── SUBMIT PROPOSAL  (replace existing route in server.js)
 app.post('/proposals', async (req, res) => {
   const { courseStructure, timeline, budget, ...proposalData } = req.body;
+
+  // Also extract the named table fields that script.js sends
+  const {
+    durationTable, curriculumTable, assessmentTable, orgStructureTable,
+    revenueTable, expenditureTable, revDistTable, honorariumTable, breakevenTable,
+    timelineTable, syllabusCourses,
+    ...coreData
+  } = proposalData;
+
   try {
-    const proposal = await Proposal.create(proposalData);
+    const proposal = await Proposal.create({ ...coreData, syllabusCourses: JSON.stringify(syllabusCourses || []) });
 
-    if (courseStructure?.length)
-      await CourseStructure.bulkCreate(courseStructure.map(r => ({ ...r, proposalId: proposal.id })));
+    // Helper: converts a 2-D array to CourseStructure / Timeline / Budget rows
+    function tableToRows(tableData, tableKey, proposalId) {
+      if (!tableData || !tableData.length) return [];
+      return tableData.flatMap((row, rowIndex) =>
+        (Array.isArray(row) ? row : [row]).map((value, colIndex) => ({
+          proposalId, tableKey, rowIndex, colIndex, value: String(value ?? '')
+        }))
+      );
+    }
 
-    if (timeline?.length)
-      await Timeline.bulkCreate(timeline.map(r => ({ ...r, proposalId: proposal.id })));
+    const csRows = [
+      ...tableToRows(durationTable,     'durationTable',     proposal.id),
+      ...tableToRows(curriculumTable,   'curriculumTable',   proposal.id),
+      ...tableToRows(assessmentTable,   'assessmentTable',   proposal.id),
+      ...tableToRows(orgStructureTable, 'orgStructureTable', proposal.id),
+    ];
+    if (csRows.length) await CourseStructure.bulkCreate(csRows);
 
-    if (budget?.length)
-      await Budget.bulkCreate(budget.map(r => ({ ...r, proposalId: proposal.id })));
+    const tlRows = tableToRows(timelineTable, 'timelineTable', proposal.id);
+    if (tlRows.length) await Timeline.bulkCreate(tlRows);
+
+    const bgRows = [
+      ...tableToRows(revenueTable,     'revenueTable',     proposal.id),
+      ...tableToRows(expenditureTable, 'expenditureTable', proposal.id),
+      ...tableToRows(revDistTable,     'revDistTable',     proposal.id),
+      ...tableToRows(honorariumTable,  'honorariumTable',  proposal.id),
+      ...tableToRows(breakevenTable,   'breakevenTable',   proposal.id),
+    ];
+    if (bgRows.length) await Budget.bulkCreate(bgRows);
 
     res.json({ message: 'Proposal submitted', id: proposal.id });
-  } catch (err) {
+  } catch(err) {
     console.log(err);
     res.status(500).json({ error: 'Error saving proposal' });
   }
 });
 
-// ── GET ALL PROPOSALS ─────────────────────────────────────────
+
+// ── GET ALL PROPOSALS  (replace existing route in server.js)
 app.get('/proposals', async (req, res) => {
   try {
     const proposals = await Proposal.findAll({
@@ -149,25 +127,68 @@ app.get('/proposals', async (req, res) => {
         { model: User, attributes: ['username', 'email'] }
       ]
     });
-    res.json(proposals);
-  } catch (err) {
+
+    // Map DB rows back to the flat shape the frontend expects
+    const shaped = proposals.map(p => {
+      const raw = p.toJSON();
+
+      // Helper: pull rows for a given tableKey stored in CourseStructures
+      const cs = (raw.CourseStructures || []);
+      const tl = (raw.Timelines || []);
+      const bg = (raw.Budgets || []);
+
+      // CourseStructures stores: { tableKey, rowIndex, colIndex, value }
+      function extractTable(rows, key) {
+        const filtered = rows.filter(r => r.tableKey === key);
+        if (!filtered.length) return [];
+        const maxRow = Math.max(...filtered.map(r => r.rowIndex));
+        const result = [];
+        for (let i = 0; i <= maxRow; i++) {
+          const rowCells = filtered.filter(r => r.rowIndex === i).sort((a, b) => a.colIndex - b.colIndex);
+          if (rowCells.length) result.push(rowCells.map(c => c.value || ''));
+        }
+        return result;
+      }
+
+      return {
+        ...raw,
+        // Flatten associations into the names script.js reads
+        durationTable:     extractTable(cs, 'durationTable'),
+        curriculumTable:   extractTable(cs, 'curriculumTable'),
+        assessmentTable:   extractTable(cs, 'assessmentTable'),
+        orgStructureTable: extractTable(cs, 'orgStructureTable'),
+        revenueTable:      extractTable(bg, 'revenueTable'),
+        expenditureTable:  extractTable(bg, 'expenditureTable'),
+        revDistTable:      extractTable(bg, 'revDistTable'),
+        honorariumTable:   extractTable(bg, 'honorariumTable'),
+        breakevenTable:    extractTable(bg, 'breakevenTable'),
+        timelineTable:     extractTable(tl, 'timelineTable'),
+        // Remove raw associations from response to keep payload clean
+        CourseStructures: undefined,
+        Timelines: undefined,
+        Budgets: undefined,
+      };
+    });
+
+    res.json(shaped);
+  } catch(err) {
     console.log(err);
     res.status(500).json({ error: 'Error fetching proposals' });
   }
 });
 
-// ── UPDATE STATUS ─────────────────────────────────────────────
+// ── UPDATE STATUS
 app.patch('/proposals/:id', async (req, res) => {
   try {
     await Proposal.update({ status: req.body.status }, { where: { id: req.params.id } });
     res.json({ message: 'Status updated' });
-  } catch (err) {
+  } catch(err) {
     console.log(err);
     res.status(500).json({ error: 'Error updating status' });
   }
 });
 
-// ── VERIFY TOKEN ──────────────────────────────────────────────
+// ── VERIFY TOKEN
 app.get('/verify', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
@@ -179,7 +200,7 @@ app.get('/verify', (req, res) => {
   }
 });
 
-// ── CHAT ──────────────────────────────────────────────────────
+// ── CHAT
 app.post('/chat', async (req, res) => {
   const { proposalId, message } = req.body;
   try {
@@ -202,51 +223,36 @@ Faculty question: "${message}"
 Answer professionally and reference the actual proposal content.
 `;
 
-    const reply = await groqChat([{ role: 'user', content: prompt }], 1000);
-    res.json({ reply });
-  } catch (err) {
-    console.error('[/chat]', err?.message || err);
-    res.status(500).json({ reply: 'Error contacting AI. Please try again in a moment.' });
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }]
+    });
+    res.json({ reply: completion.choices[0].message.content });
+  } catch(err) {
+    console.log(err);
+    res.status(500).json({ reply: 'Error contacting AI.' });
   }
 });
 
-// ── EXTRACT ───────────────────────────────────────────────────
+// ── EXTRACT
 app.post('/extract', async (req, res) => {
   const { prompt } = req.body;
   try {
-    const result = await groqChat([{ role: 'user', content: prompt }], 8000);
-    res.json({ result });
-  } catch (err) {
-    console.error('[/extract]', err?.message || err);
- 
-    const status = err?.status;
-    const code   = err?.error?.error?.code || err?.code;
- 
-    if (status === 429 || status === 413 || code === 'rate_limit_exceeded') {
-      // Parse Groq's retry time and surface it to the browser
-      let retrySeconds = err._retryAfterSecs || 15;
-      try {
-        const msg = err?.error?.error?.message || err?.message || '';
-        const m   = msg.match(/try again in\s+([\d.]+)s/i);
-        if (m) retrySeconds = Math.ceil(parseFloat(m[1])) + 2;
-      } catch (_) {}
- 
-      console.warn(`[/extract] Forwarding 429 — Retry-After: ${retrySeconds}s`);
-      return res
-        .status(429)
-        .set('Retry-After', String(retrySeconds))
-        .json({ result: '{}', retryAfter: retrySeconds });
-    }
- 
-    // Generic server error
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }]
+    });
+    res.json({ result: completion.choices[0].message.content });
+  } catch(err) {
+    console.log(err);
     res.status(500).json({ result: '{}' });
   }
 });
 
-// ── START SERVER ──────────────────────────────────────────────
+// ── START SERVER
 sequelize.sync({ alter: true })
   .then(() => {
-    app.listen(process.env.PORT || 5000, () => console.log('Server running on port', process.env.PORT || 5000));
-    console.log('PostgreSQL connected & tables synced');
+    app.listen(process.env.PORT || 5000, () => console.log('Server Running'));
+    console.log('PostgreSQL Connected & Tables Synced');
   })
   .catch(err => console.log('DB Error:', err));
