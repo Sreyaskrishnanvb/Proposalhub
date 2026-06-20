@@ -14,17 +14,46 @@ app.use(cors());
 app.use(express.json());
 
 const COMPANY_STANDARD = `
-A proposal meets company standard if it has:
-1. Clear and specific problem statement
-2. Measurable and realistic objectives
-3. Defined scope (in and out of scope)
-4. A proper methodology (Agile, Waterfall, etc.)
-5. Tools and technologies mentioned
-6. Team composition defined
-7. Concrete expected outcome
-8. Future enhancements section
-9. Minimum 100 words in introduction
-10. References cited
+PROGRAMME PROPOSAL EVALUATION STANDARDS
+========================================
+
+1. PROGRAMME OVERVIEW
+   - Clear programme name, category, and purpose
+   - Identified target audience and eligibility criteria
+   - Defined delivery mode (online/offline/hybrid) and duration
+   - Programme fee structure with payment schedule
+
+2. OBJECTIVES & OUTCOMES
+   - Minimum 5 specific, measurable programme objectives
+   - Defined Programme Outcomes (POs) mapped to courses
+   - Clear benefits to students (academic, professional, career)
+
+3. COURSE STRUCTURE
+   - Complete curriculum with course titles, levels, hours, and credits
+   - Detailed syllabus per course with lecture topics and lab components
+   - Course Outcomes (COs) defined and mapped to POs
+   - Assessment scheme with weightage (assignments, exams, practicals)
+
+4. PLAN OF EXECUTION
+   - Organising structure with roles and responsibilities defined
+   - Programme timeline with all key milestones and dates
+   - Programme Coordinator responsibilities clearly listed
+   - Application and selection process described
+   - Infrastructure and software support confirmed
+
+5. BUDGET & FINANCIALS
+   - Revenue projection (fee × expected students)
+   - Complete expenditure estimate with all heads
+   - Revenue distribution plan (faculty, admin, institution)
+   - Guest faculty honorarium rates defined
+   - Break-even analysis included
+   - Key assumptions stated
+
+6. QUALITY INDICATORS
+   - Introduction of at least 100 words
+   - No vague or undefined terms
+   - All tables complete with no empty required cells
+   - Submission date and authorized signatory present
 `;
 
 // ── REGISTER
@@ -210,17 +239,23 @@ app.post('/chat', async (req, res) => {
     if (!proposal) return res.status(404).json({ reply: 'Proposal not found.' });
 
     const prompt = `
-You are a proposal review assistant.
+You are a senior academic proposal reviewer at a university continuing education centre.
 
-Company standards:
+EVALUATION STANDARDS:
 ${COMPANY_STANDARD}
 
-Proposal data:
+PROPOSAL SUBMITTED FOR REVIEW:
 ${JSON.stringify(proposal, null, 2)}
 
-Faculty question: "${message}"
+REVIEWER'S QUESTION: "${message}"
 
-Answer professionally and reference the actual proposal content.
+Instructions:
+- Answer based strictly on the actual proposal content above
+- Reference specific sections, numbers, or values from the proposal when relevant
+- If something is missing or weak, state it clearly and explain why it matters
+- If something is strong, acknowledge it
+- Be concise, professional, and constructive
+- Do not make up information not present in the proposal
 `;
 
     const completion = await groq.chat.completions.create({
