@@ -22,8 +22,23 @@ function setRole(el, form) {
   const parent = form === 'login' ? '#formLogin' : '#formRegister';
   document.querySelectorAll(`${parent} .role-opt`).forEach(o => o.classList.remove('active'));
   el.classList.add('active');
-  if (form === 'login') loginRole = el.dataset.role;
-  else                   regRole   = el.dataset.role;
+
+  if (form === 'login') {
+    loginRole = el.dataset.role;
+    // Hide course field for executive login
+    const courseField = document.getElementById('loginCourseField');
+    if (courseField) courseField.style.display = loginRole === 'executive' ? 'none' : '';
+    if (loginRole === 'executive') document.getElementById('loginCourse').value = 'executive';
+  } else {
+    regRole = el.dataset.role;
+    // Hide course + DOJ fields for executive register
+    const courseRow = document.getElementById('regCourseRow');
+    if (courseRow) courseRow.style.display = regRole === 'executive' ? 'none' : '';
+    if (regRole === 'executive') {
+      document.getElementById('regCourse').value = 'executive';
+      document.getElementById('regDoj').value    = '2026-01-01';
+    }
+  }
 }
 
 /* ── Password toggle ── */
@@ -61,7 +76,7 @@ async function handleLogin() {
   let valid = true;
   if (!username) { markErr('loginUsername'); valid = false; }
   if (!password) { markErr('loginPassword'); valid = false; }
-  if (!course)   { markErr('loginCourse');   valid = false; }
+  if (!course && loginRole !== 'executive') { markErr('loginCourse'); valid = false; }
   if (!valid)    { setError('loginError', '⚠️ Please fill in all fields.'); return; }
 
   const btn = document.querySelector('#formLogin .btn-auth');
@@ -113,8 +128,8 @@ async function handleRegister() {
   if (!email)    { markErr('regEmail');           valid = false; }
   if (!password) { markErr('regPassword');        valid = false; }
   if (!confirm)  { markErr('regConfirmPassword'); valid = false; }
-  if (!course)   { markErr('regCourse');          valid = false; }
-  if (!doj)      { markErr('regDoj');             valid = false; }
+  if (!course && regRole !== 'executive') { markErr('regCourse'); valid = false; }
+  if (!doj   && regRole !== 'executive') { markErr('regDoj');    valid = false; }
   if (!valid)    { setError('registerError', '⚠️ Please fill in all fields.'); return; }
 
   if (password !== confirm) {

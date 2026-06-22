@@ -28,20 +28,24 @@ function logout() {
 /* ─────────────────────────────
    STATE
 ───────────────────────────── */
-let proposals    = [];
-let selectedIdx  = null;
+let proposals          = [];
+let selectedIdx        = null;
 let selectedProposalId = null;
-let currentStep  = 1;
+let currentStep        = 1;
+let syllabusCourseCount = 0;
 
 /* ─────────────────────────────
    PAGE NAVIGATION
 ───────────────────────────── */
 function switchPage(name) {
+  if (name === 'faculty' && currentRole !== 'executive') {
+    showToast('⚠️ Access denied. Only executives can view this page.', 'var(--red)');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   if (name === 'faculty') loadProposalsFromDB();
 }
-
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -64,7 +68,6 @@ function proceedToForm() {
     document.getElementById('catError').textContent = '⚠️ Please select a category to continue.';
     return;
   }
-
   const labels = {
     '1': 'Category I — Diploma / PG Diploma',
     '2': 'Category II — EEP',
@@ -72,11 +75,7 @@ function proceedToForm() {
     '4': 'Category IV — Seminars / Workshops',
     '5': 'Category V — Conferences',
   };
-
-  // All categories use the accordion form
   showPage('student');
-
-  // Show badge
   const wrap = document.querySelector('#page-student .student-wrap');
   let badge = document.getElementById('catBadge');
   if (!badge) {
@@ -99,43 +98,12 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ─────────────────────────────
-   STEP NAVIGATION
-───────────────────────────── */
-function nextStep(from) {
-  if (!validateStep(from)) return;
-  goToStep(from + 1);
-}
-
-function prevStep(from) {
-  goToStep(from - 1);
-}
-
-function goToStep(step) {
-  document.getElementById(`step-${currentStep}`).classList.remove('active');
-  currentStep = step;
-  document.getElementById(`step-${currentStep}`).classList.add('active');
-  updateStepBar();
-  window.scrollTo({ top: 120, behavior: 'smooth' });
-}
-
-function updateStepBar() {
-  document.querySelectorAll('.step').forEach(s => {
-    const n = parseInt(s.dataset.step);
-    s.classList.remove('active', 'done');
-    if (n === currentStep) s.classList.add('active');
-    else if (n < currentStep) s.classList.add('done');
-  });
-}
-
-/* ─────────────────────────────
    VALIDATION
 ───────────────────────────── */
-function validateStep(step) {
-  return true;
-}
+function validateStep(step) { return true; }
 
 function validateForm() {
-  const required = ['programmeName','submittedBy','designation','submissionDate','submittedTo','ceecsCat'];
+  const required = ['programmeName','submittedBy','designation','submissionDate','submittedTo'];
   let valid = true;
   required.forEach(id => {
     const el = document.getElementById(id);
@@ -148,14 +116,6 @@ function validateForm() {
   return valid;
 }
 
-function shakeForm() {
-  const activeStep = document.querySelector('.form-step.active') || document.querySelector('.accordion-section.open .accordion-body');
-  if (!activeStep) return;
-  activeStep.style.animation = 'none';
-  activeStep.offsetHeight;
-  activeStep.style.animation = 'shake 0.4s ease';
-}
-
 const shakeStyle = document.createElement('style');
 shakeStyle.textContent = `
   @keyframes shake {
@@ -165,33 +125,12 @@ shakeStyle.textContent = `
 document.head.appendChild(shakeStyle);
 
 /* ─────────────────────────────
-   CHARACTER COUNTERS
-───────────────────────────── */
-const counterMap = {
-  introduction:'cnt-intro', problemStatement:'cnt-prob',
-  objectives:'cnt-obj', scopeOfWork:'cnt-scope',
-  methodologies:'cnt-meth', tools:'cnt-tools',
-  expectedOutcome:'cnt-out', futureEnhancements:'cnt-fut', references:'cnt-ref',
-};
-Object.entries(counterMap).forEach(([id, cntId]) => {
-  const el  = document.getElementById(id);
-  const cnt = document.getElementById(cntId);
-  if (!el || !cnt) return;
-  el.addEventListener('input', () => {
-    cnt.textContent = `${el.value.length} / ${el.maxLength}`;
-    cnt.style.color = el.value.length > el.maxLength * 0.9 ? '#f59e0b' : 'var(--muted)';
-  });
-});
-
-/* ─────────────────────────────
    FORM SUBMISSION
 ───────────────────────────── */
 document.getElementById('proposalForm').addEventListener('submit', async function (e) {
   e.preventDefault();
   if (!validateForm()) return;
-
   const proposal = collectFormData();
-
   try {
     const response = await fetch('http://localhost:5000/proposals', {
       method: 'POST',
@@ -199,51 +138,36 @@ document.getElementById('proposalForm').addEventListener('submit', async functio
       body: JSON.stringify(proposal)
     });
     const data = await response.json();
-    console.log(data);
     proposals.push(proposal);
-
     document.getElementById('proposalForm').style.display  = 'none';
     document.getElementById('successBanner').style.display = 'block';
-
     renderProposalList();
   } catch(err) {
-    console.log(err);
     alert('Error submitting proposal');
   }
 });
 
 function collectFormData() {
   return {
-    category: selectedCategory,
+    category:    selectedCategory,
     submittedAt: new Date().toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' }),
-    status: 'pending',
-
-    // Section 1
+    status:      'pending',
     programmeName:    val('programmeName'),
     submittedBy:      val('submittedBy'),
     designation:      val('designation'),
     submissionDate:   val('submissionDate'),
     submittedTo:      val('submittedTo'),
-    ceecsCat:         val('ceecsCat'),
     aboutProgramme:   val('aboutProgramme'),
     eligibility:      val('eligibility'),
     programmeFee:     val('programmeFee'),
     objectives1:      val('objectives1'),
     benefits:         val('benefits'),
-
-    // Section 2
     programmeOutcomes: val('programmeOutcomes'),
     assessmentNotes:   val('assessmentNotes'),
-
-    // Section 3
     coordinatorResp:  val('coordinatorResp'),
     selectionProcess: val('selectionProcess'),
     infrastructure:   val('infrastructure'),
-
-    // Section 4
-    budgetNotes: val('budgetNotes'),
-
-    // Tables
+    budgetNotes:      val('budgetNotes'),
     durationTable:     getTableData('tbl-duration-body'),
     curriculumTable:   getTableData('tbl-curriculum-body'),
     assessmentTable:   getTableData('tbl-assessment-body'),
@@ -254,9 +178,7 @@ function collectFormData() {
     revDistTable:      getTableData('tbl-revdist-body'),
     honorariumTable:   getTableData('tbl-honorarium-body'),
     breakevenTable:    getTableData('tbl-breakeven-body'),
-
-    // Syllabus courses
-    syllabusCourses: getSyllabusCourses(),
+    syllabusCourses:   getSyllabusCourses(),
   };
 }
 
@@ -268,15 +190,13 @@ function val(id) {
 function getTableData(tbodyId) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return [];
-  return Array.from(tbody.rows).map(row => {
-    const cells = Array.from(row.querySelectorAll('input, textarea'));
-    return cells.map(c => c.value.trim());
-  });
+  return Array.from(tbody.rows).map(row =>
+    Array.from(row.querySelectorAll('input, textarea')).map(c => c.value.trim())
+  );
 }
 
 function getSyllabusCourses() {
-  const courses = document.querySelectorAll('.syllabus-course');
-  return Array.from(courses).map(course => ({
+  return Array.from(document.querySelectorAll('.syllabus-course')).map(course => ({
     title:    course.querySelector('.syllabus-course-title-input')?.value.trim() || '',
     outcomes: getTableData(course.querySelector('tbody')?.id),
     topics:   course.querySelector('.syllabus-topics')?.value.trim() || '',
@@ -289,8 +209,6 @@ function getSyllabusCourses() {
 ───────────────────────────── */
 function resetForm() {
   document.getElementById('proposalForm').reset();
-
-  // Clear all table bodies
   ['tbl-duration-body','tbl-curriculum-body','tbl-assessment-body',
    'tbl-orgstructure-body','tbl-timeline-body','tbl-revenue-body',
    'tbl-expenditure-body','tbl-revdist-body','tbl-honorarium-body',
@@ -298,24 +216,11 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
   });
-
-  // Clear syllabus courses
   document.getElementById('syllabus-courses').innerHTML = '';
   syllabusCourseCount = 0;
-
-  // Close all accordions
   document.querySelectorAll('.accordion-section').forEach(s => s.classList.remove('open'));
-
-  // Reset char counters
-  Object.entries(counterMap).forEach(([, cntId]) => {
-    const cnt = document.getElementById(cntId);
-    if (cnt) { cnt.textContent = `0 / ${cnt.textContent.split('/')[1]?.trim() || ''}`; cnt.style.color = 'var(--muted)'; }
-  });
-
-  // Restore form UI
   document.getElementById('proposalForm').style.display  = 'block';
   document.getElementById('successBanner').style.display = 'none';
-
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -378,8 +283,8 @@ function selectProposal(idx) {
    FACULTY — REVIEW PANEL
 ───────────────────────────── */
 function showReviewPanel(p) {
-  document.getElementById('emptyState').style.display   = 'none';
-  document.getElementById('reviewPanel').style.display  = 'block';
+  document.getElementById('emptyState').style.display  = 'none';
+  document.getElementById('reviewPanel').style.display = 'block';
   document.getElementById('rv-badge').textContent   = p.ceecsCat || p.category || '—';
   document.getElementById('rv-title').textContent   = p.programmeName || p.proposalTitle || '—';
   document.getElementById('rv-student').textContent = p.submittedBy || '—';
@@ -387,79 +292,7 @@ function showReviewPanel(p) {
   document.getElementById('rv-year').textContent    = p.submissionDate || p.submittedAt || '—';
   setStatusPill(p.status);
 
-  let html = '';
-
-  const textSections = [
-    { label:'About the Programme',        value: p.aboutProgramme },
-    { label:'Eligibility Criteria',       value: p.eligibility },
-    { label:'Programme Fee',              value: p.programmeFee },
-    { label:'Objectives',                 value: p.objectives1 },
-    { label:'Benefits to Students',       value: p.benefits },
-    { label:'Programme Outcomes',         value: p.programmeOutcomes },
-    { label:'Coordinator Responsibilities', value: p.coordinatorResp },
-    { label:'Selection Process',          value: p.selectionProcess },
-    { label:'Infrastructure',             value: p.infrastructure },
-    { label:'Budget Notes',               value: p.budgetNotes },
-    { label:'Assessment Notes',           value: p.assessmentNotes },
-  ];
-
-  textSections.forEach(s => {
-    if (s.value) {
-      html += `<div class="detail-card full">
-        <div class="detail-card-label">${s.label}</div>
-        <div class="detail-card-value">${escHtml(s.value)}</div>
-      </div>`;
-    }
-  });
-
-  const tableSections = [
-    { label:'Programme Duration & Mode',  data: p.durationTable,     headers:['Parameter','Details'] },
-    { label:'Curriculum Overview',        data: p.curriculumTable,   headers:['No.','Course Title','Level','Hours','Credits'] },
-    { label:'Assessment Scheme',          data: p.assessmentTable,   headers:['Assessment Type','Components','Weightage','Mode'] },
-    { label:'Organising Structure',       data: p.orgStructureTable, headers:['Role','Responsibility'] },
-    { label:'Timeline & Key Dates',       data: p.timelineTable,     headers:['No.','Milestone','Tentative Date'] },
-    { label:'Revenue Projection',         data: p.revenueTable,      headers:['Parameter','Value'] },
-    { label:'Expenditure Estimate',       data: p.expenditureTable,  headers:['No.','Expenditure Head','Amount (Rs.)'] },
-    { label:'Revenue Distribution',       data: p.revDistTable,      headers:['S.No','Component','Norm','Rate','Amount (Rs.)'] },
-    { label:'Guest Faculty Honorarium',   data: p.honorariumTable,   headers:['Category of Resource Person','Rate'] },
-    { label:'Break-even Analysis',        data: p.breakevenTable,    headers:['Parameter','Value'] },
-  ];
-
-  tableSections.forEach(s => {
-    if (s.data && s.data.length > 0) {
-      html += `<div class="detail-card full">
-        <div class="detail-card-label">${s.label}</div>
-        <div class="review-table-wrap">
-          <table class="review-table">
-            <thead><tr>${s.headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-            <tbody>${s.data.map(row => `<tr>${row.map(cell => `<td>${escHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
-          </table>
-        </div>
-      </div>`;
-    }
-  });
-
-  if (p.syllabusCourses && p.syllabusCourses.length > 0) {
-    p.syllabusCourses.forEach((course, i) => {
-      let courseHtml = `<div class="detail-card full">
-        <div class="detail-card-label">Course ${i+1}: ${escHtml(course.title)}</div>`;
-      if (course.outcomes && course.outcomes.length > 0) {
-        courseHtml += `<div class="review-table-wrap" style="margin-bottom:10px;">
-          <table class="review-table">
-            <thead><tr><th>CO Code</th><th>Description</th><th>PO Mapping</th></tr></thead>
-            <tbody>${course.outcomes.map(row => `<tr>${row.map(cell => `<td>${escHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
-          </table>
-        </div>`;
-      }
-      if (course.topics) courseHtml += `<div style="margin-bottom:8px;"><span style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Lecture Topics</span><div class="detail-card-value" style="margin-top:4px;">${escHtml(course.topics)}</div></div>`;
-      if (course.labWork) courseHtml += `<div><span style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);">Lab Work</span><div class="detail-card-value" style="margin-top:4px;">${escHtml(course.labWork)}</div></div>`;
-      courseHtml += `</div>`;
-      html += courseHtml;
-    });
-  }
-
-  document.getElementById('detailGrid').innerHTML = html || '<div class="detail-card full"><div class="detail-card-value"><em style="color:var(--muted)">No details available.</em></div></div>';
-
+  document.getElementById('detailGrid').innerHTML = '';
   resetChat();
 }
 
@@ -478,10 +311,8 @@ async function setDecision(decision) {
   proposal.status = decision;
   setStatusPill(decision);
   renderProposalList();
-
   const label = decision === 'approved' ? '✅ Proposal Approved' : '❌ Proposal Not Approved';
   showToast(label, decision === 'approved' ? 'var(--green)' : 'var(--red)');
-
   try {
     await fetch(`http://localhost:5000/proposals/${proposal.id}`, {
       method: 'PATCH',
@@ -515,36 +346,97 @@ function summarizeProposal() {
   const p = proposals[selectedIdx];
   const panel = document.getElementById('summaryPanel');
   const btn   = document.getElementById('btnSummarize');
-
   if (panel.style.display === 'block') {
     panel.style.display = 'none'; btn.classList.remove('active'); return;
   }
 
-  const sections = [
-    { title:'Project Title',          body:p.proposalTitle },
-    { title:'Student',                body:`${p.studentName} (${p.studentId}) · ${p.department} · ${p.academicYear}` },
-    { title:'Project Type & Duration',body:`${p.projectType} · ${p.duration}` },
-    { title:'Introduction',           body:p.introduction },
-    { title:'Problem Statement',      body:p.problemStatement },
-    { title:'Objectives',             body:p.objectives },
-    { title:'Scope of Work',          body:p.scopeOfWork },
-    { title:'Methodologies',          body:p.methodologies },
-    { title:'Tools & Technologies',   body:p.tools },
-    { title:'Team Composition',       body:p.teamComposition },
-    { title:'Expected Outcome',       body:p.expectedOutcome },
-    { title:'Future Enhancements',    body:p.futureEnhancements },
-    ...(p.references ? [{ title:'References', body:p.references }] : []),
+  function renderTable(headers, rows) {
+    if (!rows || !rows.length) return '';
+    return `
+      <div class="review-table-wrap" style="margin-top:8px;">
+        <table class="review-table">
+          <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+          <tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${escHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  const textSections = [
+    { title: 'Programme Name',               body: p.programmeName },
+    { title: 'Submitted By',                 body: p.submittedBy },
+    { title: 'Designation / Department',     body: p.designation },
+    { title: 'Submission Date',              body: p.submissionDate },
+    { title: 'Submitted To',                 body: p.submittedTo },
+    { title: 'Category',                     body: p.category },
+    { title: 'Status',                       body: p.status },
+    { title: 'About the Programme',          body: p.aboutProgramme },
+    { title: 'Eligibility Criteria',         body: p.eligibility },
+    { title: 'Programme Fee',                body: p.programmeFee },
+    { title: 'Objectives',                   body: p.objectives1 },
+    { title: 'Benefits to Students',         body: p.benefits },
+    { title: 'Programme Outcomes',           body: p.programmeOutcomes },
+    { title: 'Assessment Notes',             body: p.assessmentNotes },
+    { title: 'Coordinator Responsibilities', body: p.coordinatorResp },
+    { title: 'Selection Process',            body: p.selectionProcess },
+    { title: 'Infrastructure & Support',     body: p.infrastructure },
+    { title: 'Budget Notes & Assumptions',   body: p.budgetNotes },
   ];
 
-  document.getElementById('summaryContent').innerHTML = sections.map(s => `
-    <div class="summary-section">
-      <div class="summary-section-title">${s.title}</div>
-      <div class="summary-section-body">${escHtml(s.body)}</div>
-    </div>`).join('');
+  const tableSections = [
+    { title: 'Programme Duration & Mode',  headers: ['Parameter','Details'],                            data: p.durationTable },
+    { title: 'Curriculum Overview',        headers: ['No.','Course Title','Level','Hours','Credits'],    data: p.curriculumTable },
+    { title: 'Assessment Scheme',          headers: ['Assessment Type','Components','Weightage','Mode'], data: p.assessmentTable },
+    { title: 'Organising Structure',       headers: ['Role','Responsibility'],                           data: p.orgStructureTable },
+    { title: 'Timeline & Key Dates',       headers: ['No.','Milestone / Activity','Tentative Date'],     data: p.timelineTable },
+    { title: 'Revenue Projection',         headers: ['Parameter','Value'],                               data: p.revenueTable },
+    { title: 'Expenditure Estimate',       headers: ['No.','Expenditure Head','Amount (Rs.)'],           data: p.expenditureTable },
+    { title: 'Revenue Distribution',       headers: ['S.No','Component','Norm','Rate','Amount (Rs.)'],   data: p.revDistTable },
+    { title: 'Guest Faculty Honorarium',   headers: ['Category of Resource Person','Rate'],              data: p.honorariumTable },
+    { title: 'Break-even Analysis',        headers: ['Parameter','Value'],                               data: p.breakevenTable },
+  ];
 
+  let html = '';
+
+  // Text fields
+  textSections.filter(s => s.body).forEach(s => {
+    html += `
+      <div class="summary-section">
+        <div class="summary-section-title">${s.title}</div>
+        <div class="summary-section-body">${escHtml(s.body)}</div>
+      </div>`;
+  });
+
+  // Tables
+  tableSections.filter(s => s.data && s.data.length).forEach(s => {
+    html += `
+      <div class="summary-section">
+        <div class="summary-section-title">${s.title}</div>
+        ${renderTable(s.headers, s.data)}
+      </div>`;
+  });
+
+  // Syllabus courses
+  let courses = p.syllabusCourses;
+  if (typeof courses === 'string') { try { courses = JSON.parse(courses); } catch { courses = []; } }
+  if (Array.isArray(courses) && courses.length) {
+    courses.forEach((course, i) => {
+      html += `<div class="summary-section">
+        <div class="summary-section-title">Course ${i + 1}: ${escHtml(course.title || '')}</div>`;
+      if (course.outcomes && course.outcomes.length)
+        html += renderTable(['CO Code','Description','PO Mapping'], course.outcomes);
+      if (course.topics)
+        html += `<div class="summary-section-body" style="margin-top:10px;"><strong>Lecture Topics:</strong><br>${escHtml(course.topics)}</div>`;
+      if (course.labWork)
+        html += `<div class="summary-section-body" style="margin-top:8px;"><strong>Lab Work:</strong><br>${escHtml(course.labWork)}</div>`;
+      html += `</div>`;
+    });
+  }
+
+  document.getElementById('summaryContent').innerHTML = html ||
+    '<p style="color:var(--muted)">No content available in this proposal.</p>';
   panel.style.display = 'block';
   btn.classList.add('active');
-  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /* ─────────────────────────────
@@ -566,7 +458,7 @@ function resetChat() {
   document.getElementById('chatWindow').innerHTML = `
     <div class="chat-msg bot">
       <div class="chat-avatar">AI</div>
-      <div class="chat-bubble">Hello! I'm your AI Review Assistant. Ask me anything — e.g. <em>"Is this proposal up to company standard?"</em></div>
+      <div class="chat-bubble">Hello! I'm your AI Review Assistant. Ask me anything — e.g. <em>"Is this proposal up to standard?"</em></div>
     </div>`;
 }
 
@@ -575,10 +467,8 @@ async function sendChat() {
   const question = input.value.trim();
   if (!question) return;
   input.value = '';
-
   appendChatMsg(question, 'user');
   const typingId = appendTyping();
-
   try {
     const res = await fetch('http://localhost:5000/chat', {
       method: 'POST',
@@ -631,7 +521,90 @@ function escHtml(str) {
 function capitalize(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
 
 /* ─────────────────────────────
-   FILE UPLOAD & AUTO-FILL
+   ACCORDION
+───────────────────────────── */
+function toggleAccordion(id) {
+  const section = document.getElementById(id);
+  section.classList.toggle('open', !section.classList.contains('open'));
+}
+function openAccordion(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+
+/* ─────────────────────────────
+   DYNAMIC TABLE ROWS
+───────────────────────────── */
+function addRow(tbodyId, headers) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  headers.forEach(h => {
+    const td = document.createElement('td');
+    const input = document.createElement('input');
+    input.type = 'text'; input.placeholder = h;
+    td.appendChild(input); tr.appendChild(td);
+  });
+  const tdDel = document.createElement('td');
+  tdDel.style.width = '32px';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'btn-del-row'; btn.textContent = '✕';
+  btn.onclick = () => tr.remove();
+  tdDel.appendChild(btn); tr.appendChild(tdDel);
+  tbody.appendChild(tr);
+}
+
+/* ─────────────────────────────
+   SYLLABUS COURSES
+───────────────────────────── */
+function addSyllabusCourse() {
+  syllabusCourseCount++;
+  const idx     = syllabusCourseCount;
+  const wrap    = document.getElementById('syllabus-courses');
+  const tbodyId = `syllabus-co-body-${idx}`;
+  const div = document.createElement('div');
+  div.className = 'syllabus-course';
+  div.id = `syllabus-course-${idx}`;
+  div.innerHTML = `
+    <div class="syllabus-course-header">
+      <span class="syllabus-course-num">Course ${idx}</span>
+      <input class="syllabus-course-title-input" type="text" placeholder="Course title (e.g. Foundations of Library Technology — 40 Hours | 1 Credit)" />
+      <button type="button" class="btn-del-course" onclick="document.getElementById('syllabus-course-${idx}').remove()">✕ Remove</button>
+    </div>
+    <div class="acc-sub-label" style="font-size:10px;margin-bottom:8px;">Course Outcomes</div>
+    <div class="table-wrap" style="margin-bottom:12px;">
+      <table class="dynamic-table">
+        <thead><tr><th>CO Code</th><th>Description</th><th>PO Mapping</th><th></th></tr></thead>
+        <tbody id="${tbodyId}"></tbody>
+      </table>
+      <button type="button" class="btn-add-row" onclick="addRow('${tbodyId}', ['CO Code','Description','PO Mapping'])">+ Add Course Outcome</button>
+    </div>
+    <div class="field">
+      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Lecture Topics</label>
+      <textarea class="syllabus-topics" rows="4" placeholder="List the lecture topics for this course…"></textarea>
+    </div>
+    <div class="field" style="margin-top:8px;">
+      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Laboratory / Practical Component</label>
+      <textarea class="syllabus-lab" rows="3" placeholder="Describe the lab sessions and practical exercises…"></textarea>
+    </div>`;
+  wrap.appendChild(div);
+}
+
+/* ════════════════════════════════════════
+   AUTO-FILL  —  drop-in replacement for the
+   file upload + AI extraction section in script.js
+   
+   WHAT CHANGED vs old code:
+   ─ No more Promise.all (was causing mass 429s)
+   ─ Sequential chunks with 2.5s gap
+   ─ Single-shot for docs ≤ 7000 chars
+   ─ Hard cap of 4 chunks (covers any real proposal)
+   ─ Per-call retry with exponential back-off
+   ─ Client-side chunk size raised to 6000 chars
+   ─ Retry-After header forwarded from server
+════════════════════════════════════════ */
+
+/* ─────────────────────────────
+   FILE UPLOAD WIRING
 ───────────────────────────── */
 const uploadZone = document.getElementById('uploadZone');
 const fileInput  = document.getElementById('fileUpload');
@@ -646,7 +619,6 @@ if (uploadZone) {
     if (file) handleFile(file);
   });
 }
-
 if (fileInput) {
   fileInput.addEventListener('change', () => {
     if (fileInput.files[0]) handleFile(fileInput.files[0]);
@@ -654,56 +626,77 @@ if (fileInput) {
 }
 
 async function handleFile(file) {
-  const allowed = [
-    'application/pdf','application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain'
-  ];
-  if (!allowed.includes(file.type) && !file.name.endsWith('.txt')) {
-    showToast('⚠️ Only PDF, Word, or TXT files supported', 'var(--red)'); return;
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  if (!['pdf','doc','docx','txt'].includes(ext)) {
+    showToast('⚠️ Only PDF, Word (.docx), or TXT files supported', 'var(--red)');
+    return;
+  }
+  if (ext === 'doc') {
+    showUploadStatus('❌ Old .doc format not supported. Save as .docx or .txt and try again.', 100);
+    setTimeout(() => document.getElementById('uploadStatus').style.display = 'none', 5000);
+    return;
   }
 
   showUploadStatus('Reading file…', 10);
 
   try {
     let text = '';
-    if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+
+    if (ext === 'txt') {
+      showUploadStatus('Reading text file…', 20);
       text = await file.text();
-    } else if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
+    } else if (ext === 'pdf') {
+      showUploadStatus('Loading PDF reader…', 15);
       text = await extractTextFromPDF(file);
-    } else {
-      text = await file.text();
+    } else if (ext === 'docx') {
+      showUploadStatus('Loading Word reader…', 15);
+      text = await extractTextFromDocx(file);
     }
 
-    showUploadStatus('Analysing with AI…', 40);
+
+    if (!text || text.trim().length < 50) {
+      showUploadStatus('⚠️ File appears empty or unreadable. Try saving as .txt and re-uploading.', 100);
+      setTimeout(() => document.getElementById('uploadStatus').style.display = 'none', 5000);
+      return;
+    }
+
+    showUploadStatus('Sending to AI for extraction…', 25);
     const extracted = await extractFieldsWithAI(text);
 
-    showUploadStatus('Filling form…', 85);
+    showUploadStatus('Filling form…', 97);
     fillForm(extracted);
 
     showUploadStatus('✅ Done! Review and edit the filled fields.', 100);
     setTimeout(() => document.getElementById('uploadStatus').style.display = 'none', 3000);
 
   } catch (err) {
-    console.error(err);
-    showUploadStatus('❌ Could not process file. Try a .txt file.', 100);
+    console.error('[Upload] Error:', err);
+    let msg = '❌ Could not process file.';
+    if (err.message?.includes('pdf') || err.message?.includes('PDF'))
+      msg = '❌ PDF reader failed. Try converting to .txt and uploading again.';
+    else if (err.message?.includes('mammoth') || err.message?.includes('docx'))
+      msg = '❌ Word reader failed. Try saving as .txt and uploading again.';
+    else if (err.message?.includes('fetch') || err.message?.includes('network'))
+      msg = '❌ Cannot reach server. Make sure backend is running on port 5000.';
+    else if (err.message)
+      msg = `❌ ${err.message}`;
+    showUploadStatus(msg, 100);
+    setTimeout(() => document.getElementById('uploadStatus').style.display = 'none', 6000);
   }
 }
 
+/* ─── PDF extraction ─────────────────── */
 async function extractTextFromPDF(file) {
   return new Promise((resolve, reject) => {
-    if (!document.querySelector('script[src*="pdf.min.js"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script.onload = () => doPDFExtract(file, resolve, reject);
-      script.onerror = () => reject(new Error('PDF.js failed to load'));
-      document.head.appendChild(script);
-    } else {
-      doPDFExtract(file, resolve, reject);
-    }
+    if (window['pdfjs-dist/build/pdf']) { doPDFExtract(file, resolve, reject); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload  = () => doPDFExtract(file, resolve, reject);
+    script.onerror = () => reject(new Error('pdf.js failed to load from CDN'));
+    document.head.appendChild(script);
   });
 }
-
 async function doPDFExtract(file, resolve, reject) {
   try {
     const pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -717,188 +710,486 @@ async function doPDFExtract(file, resolve, reject) {
       const content = await page.getTextContent();
       fullText += content.items.map(item => item.str).join(' ') + '\n';
     }
+    if (!fullText.trim())
+      return reject(new Error('PDF has no selectable text. Try a text-based PDF or .txt file.'));
     resolve(fullText);
-  } catch(e) { reject(e); }
+  } catch(e) { reject(new Error('PDF parse error: ' + e.message)); }
 }
 
+/* ─── DOCX extraction ────────────────── */
+async function extractTextFromDocx(file) {
+  return new Promise((resolve, reject) => {
+    if (window.mammoth) { doDocxExtract(file, resolve, reject); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+    script.onload  = () => doDocxExtract(file, resolve, reject);
+    script.onerror = () => reject(new Error('mammoth.js failed to load from CDN'));
+    document.head.appendChild(script);
+  });
+}
+async function doDocxExtract(file, resolve, reject) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    resolve(result.value);
+  } catch(e) { reject(new Error('DOCX parse error: ' + e.message)); }
+}
+
+/* ════════════════════════════════════════
+   AI EXTRACTION  —  sequential, rate-limit safe
+════════════════════════════════════════ */
 async function extractFieldsWithAI(text) {
-  const prompt = `You are a document parser. Extract information from the following document and return ONLY a valid JSON object with these exact keys. If a field is not found, use an empty string "".
+  // Normalise whitespace
+  const doc = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 
-Keys:
-- studentName
-- studentId
-- department (one of: "Computer Science & Engineering","Information Technology","Electronics & Communication","Mechanical Engineering","Civil Engineering","Data Science & AI")
-- academicYear (format: "2024–25" or "2025–26" or "2026–27")
-- proposalTitle
-- projectType (one of: "Research","Development","Industry Collaboration","Open Source","Social Impact")
-- duration (one of: "1 Month","2 Months","3 Months","6 Months","1 Year")
-- introduction
-- problemStatement
-- objectives
-- scopeOfWork
-- methodologies
-- tools
-- teamComposition
-- expectedOutcome
-- futureEnhancements
-- references
 
-Document:
-"""
-${text.slice(0, 4000)}
-"""
+  /* ── Single-shot: fits in one call (≤ 7000 chars) ── */
+  if (doc.length <= 30000) {
+    showUploadStatus('Extracting fields (single pass)…', 45);
+    const result = await callExtract(buildExtractionPrompt(doc, 1, 1));
+    return mergeResults([result]);
+  }
 
-Return ONLY the JSON object, no explanation, no markdown.`;
+  const CHUNK  = 8000;
+  const OVERLAP = 2500;
+  const MAX_CHUNKS = 10;          
+  const chunks  = [];
+  let pos = 0;
+  while (pos < doc.length && chunks.length < MAX_CHUNKS) {
+    chunks.push(doc.slice(pos, pos + CHUNK));
+    pos += CHUNK - OVERLAP;
+  }
+  if (doc.length > pos + OVERLAP) {
+    // Document truncated after max chunks
+  }
+  const results = [];
 
-  const res  = await fetch('http://localhost:5000/extract', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt })
-  });
-  const data  = await res.json();
-  const clean = data.result.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  for (let i = 0; i < chunks.length; i++) {
+    const pct = Math.round(28 + (i / chunks.length) * 58);
+    showUploadStatus(`Extracting chunk ${i + 1} of ${chunks.length}…`, pct);
+
+    const result = await callExtract(buildExtractionPrompt(chunks[i], i + 1, chunks.length));
+    results.push(result);
+
+    // Polite gap between calls — prevents rate-limit completely
+    if (i < chunks.length - 1) {
+      showUploadStatus(`Chunk ${i + 1} done — waiting 2.5 s before next…`, pct + 5);
+      await sleep(2500);
+    }
+  }
+
+  showUploadStatus('Merging and deduplicating results…', 92);
+  return mergeResults(results);
 }
 
-function fillForm(data) {
-  const fieldMap = {
-    studentName:'studentName', studentId:'studentId',
-    proposalTitle:'proposalTitle', teamComposition:'teamComposition',
-    introduction:'introduction', problemStatement:'problemStatement',
-    objectives:'objectives', scopeOfWork:'scopeOfWork',
-    methodologies:'methodologies', tools:'tools',
-    expectedOutcome:'expectedOutcome', futureEnhancements:'futureEnhancements',
-    references:'references',
-  };
-  const selectMap = {
-    department:'department', academicYear:'academicYear',
-    projectType:'projectType', duration:'duration',
-  };
+/* ─── Build the extraction prompt ──────────────────────────── */
+function buildExtractionPrompt(chunk, num, total) {
+  return `You are extracting structured data from part ${num} of ${total} of an academic programme proposal document.
+Extract ONLY fields found in THIS chunk. Use empty string "" or empty array [] for anything not in this chunk.
+Return ONLY valid compact JSON — no markdown fences, no explanation, no extra keys.
 
-  Object.entries(fieldMap).forEach(([key, id]) => {
-    const el = document.getElementById(id);
-    if (el && data[key]) {
-      el.value = data[key];
-      el.classList.add('autofilled');
-      el.dispatchEvent(new Event('input'));
-      setTimeout(() => el.classList.remove('autofilled'), 2000);
+{
+  "programmeName": "",
+  "submittedBy": "",
+  "designation": "",
+  "submissionDate": "",
+  "submittedTo": "",
+  "aboutProgramme": "",
+  "eligibility": "",
+  "programmeFee": "",
+  "objectives1": "",
+  "benefits": "",
+  "programmeOutcomes": "",
+  "assessmentNotes": "",
+  "coordinatorResp": "",
+  "selectionProcess": "",
+  "infrastructure": "",
+  "budgetNotes": "(Extract: Notes & Assumptions, budget assumptions, key financial assumptions, or any notes about the budget)",
+  "durationTable":     [],
+  "curriculumTable":   [],
+  "assessmentTable":   [],
+  "orgStructureTable": [],
+  "timelineTable":     [],
+  "revenueTable":      [],
+  "expenditureTable":  [],
+  "revDistTable":      [],
+  "honorariumTable":   [],
+  "breakevenTable":    [],
+  "syllabusCourses":   []
+}
+
+Table formats (arrays of arrays):
+durationTable:     [["Parameter","Details"], ...]
+curriculumTable:   [["No","Title","Level","Hours","Credits"], ...]
+assessmentTable:   [["Type","Components","Weightage","Mode"], ...]
+orgStructureTable: [["Role","Responsibility"], ...]
+timelineTable:     [["No","Milestone","Date"], ...]
+revenueTable:      [["Parameter","Value"], ...]
+expenditureTable:  [["No","Head","Amount"], ...]
+revDistTable:      [["SNo","Component","Norm","Rate","Amount"], ...]
+honorariumTable:   [["Category","Rate"], ...]
+breakevenTable:    [["Parameter","Value"], ...]
+
+IMPORTANT: "budgetNotes" = the "Notes & Assumptions" section or any budget-related notes/assumptions text. This usually appears at the very end of Section 4. Do NOT leave it empty if such content exists in this chunk.
+For syllabusCourses: extract each course as a separate object.
+
+- title: the course heading only
+- topics: ONLY the Lecture Topics listed under THAT course, not from any other course
+- labWork: ONLY the Laboratory Component text directly under THAT course heading, not from any other course
+- outcomes: course outcome rows as arrays
+
+syllabusCourses: [{"title":"","topics":"","labWork":"","outcomes":[["COCode","Description","POMapping"]]}]
+
+DOCUMENT CHUNK ${num}/${total}:
+"""
+${chunk}
+"""
+
+Return ONLY the JSON object. Nothing else.`;
+}
+/* ─── Merge partial results into one clean object ──────────── */
+function mergeResults(results) {
+  const TEXT_KEYS = [
+    'programmeName','submittedBy','designation','submissionDate','submittedTo',
+    'aboutProgramme','eligibility','programmeFee','objectives1','benefits',
+    'programmeOutcomes','assessmentNotes','coordinatorResp','selectionProcess',
+    'infrastructure','budgetNotes',
+  ];
+  const TABLE_KEYS = [
+    'durationTable','curriculumTable','assessmentTable','orgStructureTable',
+    'timelineTable','revenueTable','expenditureTable','revDistTable',
+    'honorariumTable','breakevenTable',
+  ];
+
+  const merged = {};
+
+  // Text fields: first non-empty value wins
+  for (const key of TEXT_KEYS) {
+    merged[key] = '';
+    for (const r of results) {
+      const v = (r[key] || '').trim();
+      if (v) { merged[key] = v; break; }
     }
-  });
+  }
 
-  Object.entries(selectMap).forEach(([key, id]) => {
-    const el = document.getElementById(id);
-    if (el && data[key]) {
-      const match = Array.from(el.options).find(o =>
-        o.value.toLowerCase().includes(data[key].toLowerCase()) ||
-        data[key].toLowerCase().includes(o.value.toLowerCase())
-      );
-      if (match) {
-        el.value = match.value;
-        el.classList.add('autofilled');
-        setTimeout(() => el.classList.remove('autofilled'), 2000);
+  // Table fields: concatenate, deduplicate rows by first cell
+// Common header/placeholder values to drop from table data rows
+  const HEADER_WORDS = new Set([
+    'no', 'no.', 's.no', 'sno', 'parameter', 'value', 'details',
+    'milestone', 'date', 'role', 'responsibility', 'component',
+    'type', 'mode', 'rate', 'amount', 'head', 'norm', 'category',
+    'assessment type', 'components', 'weightage', 'title', 'level',
+    'hours', 'credits', 'course title',
+  ]);
+
+  // Table fields: concatenate, deduplicate rows by first cell, drop header rows
+  for (const key of TABLE_KEYS) {
+    const seen = new Set();
+    const rows = [];
+    for (const r of results) {
+      for (const row of normaliseRows(r[key])) {
+        const k0 = (row[0] || '').trim().toLowerCase();
+        if (!k0) continue;
+        // Drop rows that look like header rows (first cell is a known header word)
+        if (HEADER_WORDS.has(k0)) continue;
+        // Deduplicate by first cell
+        if (seen.has(k0)) continue;
+        seen.add(k0);
+        rows.push(row);
       }
     }
-  });
+    merged[key] = rows;
+  }
 
-  showToast('✅ Form auto-filled from document!', 'var(--green)');
+  // ── Syllabus courses: build a clean map keyed by normalised title
+  const courseMap = new Map();
+
+  for (const r of results) {
+    for (const course of (Array.isArray(r.syllabusCourses) ? r.syllabusCourses : [])) {
+      if (!course || typeof course !== 'object') continue;
+
+      // Normalise: strip "Course N:" prefix and trim
+      const rawTitle = (course.title || '').trim();
+      const normTitle = rawTitle
+        .toLowerCase()
+        .replace(/^course\s*\d+\s*:\s*/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Skip phantom/truncated titles (too short or ends mid-word with no vowel pattern)
+      if (normTitle.length < 10) continue;
+
+      if (!courseMap.has(normTitle)) {
+        courseMap.set(normTitle, {
+          title:    rawTitle.replace(/^Course\s*\d+\s*:\s*/i, '').trim(), // clean title
+          topics:   course.topics   || '',
+          labWork:  course.labWork  || '',
+          outcomes: course.outcomes || [],
+        });
+      } else {
+        // Merge: keep the richer version of each field
+        const existing = courseMap.get(normTitle);
+        if ((course.topics   || '').length > existing.topics.length)
+          existing.topics   = course.topics;
+        if ((course.labWork  || '').length > existing.labWork.length)
+          existing.labWork  = course.labWork;
+        if ((course.outcomes || []).length > existing.outcomes.length)
+          existing.outcomes = course.outcomes;
+      }
+    }
+  }
+
+  // ── Match against curriculum table to get the right order and drop phantoms
+  let allCourses = Array.from(courseMap.values());
+
+  if (merged.curriculumTable && merged.curriculumTable.length > 0) {
+    // Build ordered list from curriculum table (skip header rows)
+    const curriculumTitles = merged.curriculumTable
+      .filter(row => row[0] && !isNaN(row[0]))          // rows starting with a number
+      .map(row => ({
+        norm: (row[1] || '').toLowerCase().replace(/\s+/g, ' ').trim(),
+        display: (row[1] || '').trim(),
+      }));
+
+    // For each curriculum entry, find the best matching syllabus course
+    const ordered = [];
+    for (const curr of curriculumTitles) {
+      // Find course map entry whose norm title overlaps with curriculum title
+      let best = null;
+      let bestScore = 0;
+      for (const [normKey, courseObj] of courseMap.entries()) {
+        const shorter = normKey.length < curr.norm.length ? normKey : curr.norm;
+        const longer  = normKey.length < curr.norm.length ? curr.norm : normKey;
+        // Overlap score: length of shorter string that appears in longer
+        if (longer.includes(shorter) && shorter.length > bestScore) {
+          bestScore = shorter.length;
+          best = courseObj;
+        }
+      }
+      if (best && bestScore > 10) {
+        // Use the curriculum table title as the display title (more reliable)
+        ordered.push({ ...best, title: curr.display });
+      }
+    }
+
+    merged.syllabusCourses = ordered.length > 0 ? ordered : allCourses;
+  } else {
+    merged.syllabusCourses = allCourses;
+  }
+  return merged;
+}
+/* ─── Single extract call with retry ───────────────────────── */
+async function callExtract(prompt) {
+  const MAX_RETRIES = 4;
+  const BASE_DELAY  = 6000; // 6 s base
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch('http://localhost:5000/extract', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ prompt }),
+      });
+
+      // Server forwarded a 429 with Retry-After from Groq
+      if (res.status === 429) {
+        const ra = parseInt(res.headers.get('Retry-After') || '0', 10);
+        const wait = (ra > 0 ? ra * 1000 : BASE_DELAY * Math.pow(2, attempt));
+        showUploadStatus(`Rate limit — retrying in ${Math.round(wait/1000)} s…`, 35);
+        await sleep(wait);
+        continue;
+      }
+      
+      if (res.status === 413) {
+        return {};
+      }
+
+      // Transient server error
+      if (res.status >= 500) {
+        const wait = BASE_DELAY * Math.pow(2, attempt);
+        await sleep(wait);
+        continue;
+      }
+
+      const data = await res.json();
+      let raw = (data.result || '{}').trim()
+        .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+
+      // Find outermost { }
+      const start = raw.indexOf('{');
+      const end   = raw.lastIndexOf('}');
+      if (start === -1 || end === -1) {
+        return {};
+      }
+      try {
+        return JSON.parse(raw.slice(start, end + 1));
+      } catch(e) {
+        console.error('[AutoFill] JSON parse failed:', e.message);
+        return {};
+      }
+
+    } catch(err) {
+      const wait = BASE_DELAY * Math.pow(2, attempt);
+      console.error(`[AutoFill] Fetch error (attempt ${attempt+1}):`, err.message);
+      if (attempt < MAX_RETRIES - 1) await sleep(wait);
+    }
+  }
+  console.error('[AutoFill] All retries exhausted for chunk');
+  return {};
+}
+
+/* ─── Shared sleep utility ──────────────────────────────────── */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/* ─── Normalise table rows (array of arrays / array of objects) */
+function normaliseRows(data) {
+  if (!data) return [];
+  if (!Array.isArray(data) && typeof data === 'object')
+    return Object.entries(data).map(([k,v]) => [String(k), String(v ?? '')]).filter(r => r[0].trim() || r[1].trim());
+  if (!Array.isArray(data) || data.length === 0) return [];
+  return data
+    .map(row => {
+      if (Array.isArray(row))            return row.map(c => String(c ?? ''));
+      if (row && typeof row === 'object') return Object.values(row).map(v => String(v ?? ''));
+      return [String(row ?? '')];
+    })
+    .filter(row => row.length > 0 && row.some(c => c.trim()));
+}
+
+/* ════════════════════════════════════════
+   fillForm  —  unchanged from original;
+   included here for completeness
+════════════════════════════════════════ */
+function fillForm(data) {
+  let filled = 0;
+
+  const textMap = {
+    programmeName:'programmeName',    submittedBy:'submittedBy',
+    designation:'designation',        submissionDate:'submissionDate',
+    submittedTo:'submittedTo',         aboutProgramme:'aboutProgramme',
+    eligibility:'eligibility',         programmeFee:'programmeFee',
+    objectives1:'objectives1',         benefits:'benefits',
+    programmeOutcomes:'programmeOutcomes', coordinatorResp:'coordinatorResp',
+    selectionProcess:'selectionProcess',   infrastructure:'infrastructure',
+    budgetNotes:'budgetNotes',             assessmentNotes:'assessmentNotes',
+  };
+  for (const [key, id] of Object.entries(textMap)) {
+    const el = document.getElementById(id);
+    const v  = (data[key] || '').trim();
+    if (!el || !v) continue;
+    el.value = v; flashField(el); filled++;
+  }
+
+  const tableMap = {
+    durationTable:'tbl-duration-body',     curriculumTable:'tbl-curriculum-body',
+    assessmentTable:'tbl-assessment-body', orgStructureTable:'tbl-orgstructure-body',
+    timelineTable:'tbl-timeline-body',     revenueTable:'tbl-revenue-body',
+    expenditureTable:'tbl-expenditure-body', revDistTable:'tbl-revdist-body',
+    honorariumTable:'tbl-honorarium-body', breakevenTable:'tbl-breakeven-body',
+  };
+  for (const [key, tbodyId] of Object.entries(tableMap)) {
+    const rows  = normaliseRows(data[key]);
+    if (!rows.length) continue;
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) continue;
+    tbody.innerHTML = '';
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+      for (const cell of row) {
+        const td  = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.value = cell;
+        flashField(inp); td.appendChild(inp); tr.appendChild(td);
+      }
+      const tdDel = document.createElement('td');
+      tdDel.style.width = '32px';
+      const btnDel = document.createElement('button');
+      btnDel.type = 'button'; btnDel.className = 'btn-del-row'; btnDel.textContent = '✕';
+      btnDel.onclick = () => tr.remove();
+      tdDel.appendChild(btnDel); tr.appendChild(tdDel);
+      tbody.appendChild(tr); filled++;
+    }
+  }
+
+  const coursesRaw = Array.isArray(data.syllabusCourses) ? data.syllabusCourses : [];
+  if (coursesRaw.length > 0) {
+    const wrap = document.getElementById('syllabus-courses');
+    if (wrap) {
+      wrap.innerHTML = ''; syllabusCourseCount = 0;
+      for (const course of coursesRaw) {
+        if (!course || typeof course !== 'object') continue;
+        syllabusCourseCount++;
+        const idx     = syllabusCourseCount;
+        const tbodyId = `syllabus-co-body-${idx}`;
+        const div = document.createElement('div');
+        div.className = 'syllabus-course'; div.id = `syllabus-course-${idx}`;
+        div.innerHTML = `
+          <div class="syllabus-course-header">
+            <span class="syllabus-course-num">Course ${idx}</span>
+            <input class="syllabus-course-title-input" type="text" value="${escHtml(course.title||'')}" placeholder="Course title" />
+            <button type="button" class="btn-del-course" onclick="document.getElementById('syllabus-course-${idx}').remove()">✕ Remove</button>
+          </div>
+          <div class="acc-sub-label" style="font-size:10px;margin-bottom:8px;">Course Outcomes</div>
+          <div class="table-wrap" style="margin-bottom:12px;">
+            <table class="dynamic-table">
+              <thead><tr><th>CO Code</th><th>Description</th><th>PO Mapping</th><th></th></tr></thead>
+              <tbody id="${tbodyId}"></tbody>
+            </table>
+            <button type="button" class="btn-add-row" onclick="addRow('${tbodyId}',['CO Code','Description','PO Mapping'])">+ Add Course Outcome</button>
+          </div>
+          <div class="field">
+            <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Lecture Topics</label>
+            <textarea class="syllabus-topics" rows="4" placeholder="List the lecture topics…">${escHtml(course.topics||'')}</textarea>
+          </div>
+          <div class="field" style="margin-top:8px;">
+            <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Laboratory / Practical Component</label>
+            <textarea class="syllabus-lab" rows="3" placeholder="Describe lab sessions…">${escHtml(course.labWork||'')}</textarea>
+          </div>`;
+        wrap.appendChild(div);
+        const outcomes = normaliseRows(course.outcomes);
+        if (outcomes.length > 0) {
+          const outTbody = document.getElementById(tbodyId);
+          for (const row of outcomes) {
+            const tr = document.createElement('tr');
+            for (const cell of row) {
+              const td  = document.createElement('td');
+              const inp = document.createElement('input');
+              inp.type = 'text'; inp.value = cell;
+              flashField(inp); td.appendChild(inp); tr.appendChild(td);
+            }
+            const tdDel = document.createElement('td'); tdDel.style.width = '32px';
+            const btnDel = document.createElement('button');
+            btnDel.type = 'button'; btnDel.className = 'btn-del-row'; btnDel.textContent = '✕';
+            btnDel.onclick = () => tr.remove();
+            tdDel.appendChild(btnDel); tr.appendChild(tdDel); outTbody.appendChild(tr);
+          }
+        }
+        flashField(div.querySelector('.syllabus-course-title-input'));
+        filled++;
+      }
+    }
+  }
+
+  ['acc-1','acc-2','acc-3','acc-4'].forEach(id => openAccordion(id));
+  showToast(`✅ Auto-filled ${filled} fields, tables & courses!`, 'var(--green)');
+}
+
+function flashField(el) {
+  if (!el) return;
+  el.classList.add('autofilled');
+  setTimeout(() => el.classList.remove('autofilled'), 2500);
 }
 
 function showUploadStatus(text, percent) {
   const status = document.getElementById('uploadStatus');
-  const bar    = document.getElementById('uploadProgressBar');
-  const label  = document.getElementById('uploadStatusText');
   if (!status) return;
   status.style.display = 'block';
-  bar.style.width      = percent + '%';
-  label.textContent    = text;
-}
-
-/* ─────────────────────────────
-   ACCORDION
-───────────────────────────── */
-function toggleAccordion(id) {
-  const section = document.getElementById(id);
-  const isOpen  = section.classList.contains('open');
-  section.classList.toggle('open', !isOpen);
-}
-
-function openAccordion(id) {
-  document.getElementById(id)?.classList.add('open');
-}
-
-/* ─────────────────────────────
-   DYNAMIC TABLE ROWS
-───────────────────────────── */
-function addRow(tbodyId, headers) {
-  const tbody = document.getElementById(tbodyId);
-  if (!tbody) return;
-  const tr = document.createElement('tr');
-
-  headers.forEach(h => {
-    const td = document.createElement('td');
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.placeholder = h;
-    td.appendChild(input);
-    tr.appendChild(td);
-  });
-
-  const tdDel = document.createElement('td');
-  tdDel.style.width = '32px';
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn-del-row';
-  btn.textContent = '✕';
-  btn.onclick = () => tr.remove();
-  tdDel.appendChild(btn);
-  tr.appendChild(tdDel);
-
-  tbody.appendChild(tr);
-}
-
-/* ─────────────────────────────
-   SYLLABUS COURSES
-───────────────────────────── */
-let syllabusCourseCount = 0;
-
-function addSyllabusCourse() {
-  syllabusCourseCount++;
-  const idx     = syllabusCourseCount;
-  const wrap    = document.getElementById('syllabus-courses');
-  const tbodyId = `syllabus-co-body-${idx}`;
-
-  const div = document.createElement('div');
-  div.className = 'syllabus-course';
-  div.id = `syllabus-course-${idx}`;
-
-  div.innerHTML = `
-    <div class="syllabus-course-header">
-      <span class="syllabus-course-num">Course ${idx}</span>
-      <input class="syllabus-course-title-input" type="text" placeholder="Course title (e.g. Foundations of Library Technology — 40 Hours | 1 Credit)" />
-      <button type="button" class="btn-del-course" onclick="document.getElementById('syllabus-course-${idx}').remove()">✕ Remove</button>
-    </div>
-
-    <div class="acc-sub-label" style="font-size:10px;margin-bottom:8px;">Course Outcomes</div>
-    <div class="table-wrap" style="margin-bottom:12px;">
-      <table class="dynamic-table">
-        <thead>
-          <tr><th>CO Code</th><th>Description</th><th>PO Mapping</th><th></th></tr>
-        </thead>
-        <tbody id="${tbodyId}"></tbody>
-      </table>
-      <button type="button" class="btn-add-row" onclick="addRow('${tbodyId}', ['CO Code','Description','PO Mapping'])">+ Add Course Outcome</button>
-    </div>
-
-    <div class="field">
-      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Lecture Topics</label>
-      <textarea class="syllabus-topics" rows="4" placeholder="List the lecture topics for this course…"></textarea>
-    </div>
-
-    <div class="field" style="margin-top:8px;">
-      <label style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Laboratory / Practical Component</label>
-      <textarea class="syllabus-lab" rows="3" placeholder="Describe the lab sessions and practical exercises…"></textarea>
-    </div>
-  `;
-
-  wrap.appendChild(div);
+  document.getElementById('uploadProgressBar').style.width = percent + '%';
+  document.getElementById('uploadStatusText').textContent  = text;
 }

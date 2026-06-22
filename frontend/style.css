@@ -553,9 +553,10 @@ header {
 
 .summary-content {
   padding: 24px; font-size: 14px; line-height: 1.75;
-  color: var(--text-dim); white-space: pre-wrap;
+  color: var(--text-dim);
   font-family: 'DM Sans', sans-serif;
-  max-height: 420px; overflow-y: auto;
+  max-height: 70vh; overflow-y: auto;
+  white-space: normal;
 }
 .summary-section { margin-bottom: 20px; }
 .summary-section-title {
@@ -1083,9 +1084,16 @@ header {
    SUMMARY FIX
 ════════════════ */
 .summary-content { white-space: normal !important; }
-.summary-section { margin-bottom: 10px; }
+.summary-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.summary-section:last-child { border-bottom: none; }
 .summary-section-title {
   font-size: 10px; font-weight: 700; letter-spacing: 2px;
-  text-transform: uppercase; color: var(--accent); margin-bottom: 2px;
+  text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
 }
-.summary-section-body { color: var(--text); font-size: 14px; line-height: 1.6; }
+.summary-section-body {
+  color: var(--text); font-size: 14px; line-height: 1.7;
+}

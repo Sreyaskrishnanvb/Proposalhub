@@ -11,62 +11,44 @@ const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const SECRET = process.env.JWT_SECRET;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const COMPANY_STANDARD = `
-PROGRAMME PROPOSAL EVALUATION STANDARDS
-========================================
+PROPOSAL REVIEW CHECKLIST
+==========================
 
-1. PROGRAMME OVERVIEW
-   - Clear programme name, category, and purpose
-   - Identified target audience and eligibility criteria
-   - Defined delivery mode (online/offline/hybrid) and duration
-   - Programme fee structure with payment schedule
+QUALITY STANDARDS (check these first):
+- Programme name, category, and purpose are clearly stated
+- Introduction is at least 100 words and well-written
+- Submission date and authorized signatory are present
+- No vague or undefined terms used anywhere
 
-2. OBJECTIVES & OUTCOMES
-   - Minimum 5 specific, measurable programme objectives
-   - Defined Programme Outcomes (POs) mapped to courses
-   - Clear benefits to students (academic, professional, career)
-
-3. COURSE STRUCTURE
-   - Complete curriculum with course titles, levels, hours, and credits
-   - Detailed syllabus per course with lecture topics and lab components
-   - Course Outcomes (COs) defined and mapped to POs
-   - Assessment scheme with weightage (assignments, exams, practicals)
-
-4. PLAN OF EXECUTION
-   - Organising structure with roles and responsibilities defined
-   - Programme timeline with all key milestones and dates
-   - Programme Coordinator responsibilities clearly listed
-   - Application and selection process described
-   - Infrastructure and software support confirmed
-
-5. BUDGET & FINANCIALS
-   - Revenue projection (fee × expected students)
-   - Complete expenditure estimate with all heads
-   - Revenue distribution plan (faculty, admin, institution)
-   - Guest faculty honorarium rates defined
-   - Break-even analysis included
-   - Key assumptions stated
-
-6. QUALITY INDICATORS
-   - Introduction of at least 100 words
-   - No vague or undefined terms
-   - All tables complete with no empty required cells
-   - Submission date and authorized signatory present
+COURSE STRUCTURE & SYLLABUS (primary focus):
+- Curriculum table lists all courses with title, level, hours, and credits
+- Each course has clearly defined Course Outcomes (COs)
+- COs are mapped to Programme Outcomes (POs)
+- Lecture topics are listed for each course
+- Laboratory/practical component is described for each course
+- Assessment scheme has clear weightage (CA vs CEA)
+- Total credits and hours are consistent across sections
 `;
 
 // ── REGISTER
 app.post('/register', async (req, res) => {
   const { username, email, password, course, doj, role } = req.body;
   try {
-    const existing = await User.findOne({ where: { username } });
-    if (existing) return res.status(400).json({ error: 'Username already taken' });
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) return res.status(400).json({ error: 'Username already taken' });
+
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) return res.status(400).json({ error: 'Email already registered' });
+
     const hashed = await bcrypt.hash(password, 10);
     await User.create({ username, email, password: hashed, course, doj, role });
     res.json({ message: 'Registered successfully' });
   } catch(err) {
-    console.log(err);
+    console.error('Register error:', err.message);
     res.status(500).json({ error: 'Server error during registration' });
   }
 });
@@ -86,17 +68,15 @@ app.post('/login', async (req, res) => {
     );
     res.json({ token, username: user.username, role: user.role });
   } catch(err) {
-    console.log(err);
+    console.error('Login error:', err.message);
     res.status(500).json({ error: 'Server error during login' });
   }
 });
 
 // ── SUBMIT PROPOSAL
-// ── SUBMIT PROPOSAL  (replace existing route in server.js)
 app.post('/proposals', async (req, res) => {
   const { courseStructure, timeline, budget, ...proposalData } = req.body;
 
-  // Also extract the named table fields that script.js sends
   const {
     durationTable, curriculumTable, assessmentTable, orgStructureTable,
     revenueTable, expenditureTable, revDistTable, honorariumTable, breakevenTable,
@@ -105,9 +85,11 @@ app.post('/proposals', async (req, res) => {
   } = proposalData;
 
   try {
-    const proposal = await Proposal.create({ ...coreData, syllabusCourses: JSON.stringify(syllabusCourses || []) });
+    const proposal = await Proposal.create({
+      ...coreData,
+      syllabusCourses: JSON.stringify(syllabusCourses || [])
+    });
 
-    // Helper: converts a 2-D array to CourseStructure / Timeline / Budget rows
     function tableToRows(tableData, tableKey, proposalId) {
       if (!tableData || !tableData.length) return [];
       return tableData.flatMap((row, rowIndex) =>
@@ -139,69 +121,74 @@ app.post('/proposals', async (req, res) => {
 
     res.json({ message: 'Proposal submitted', id: proposal.id });
   } catch(err) {
-    console.log(err);
+    console.error('Submit proposal error:', err.message);
     res.status(500).json({ error: 'Error saving proposal' });
   }
 });
 
-
-// ── GET ALL PROPOSALS  (replace existing route in server.js)
+// ── GET ALL PROPOSALS
 app.get('/proposals', async (req, res) => {
   try {
     const proposals = await Proposal.findAll({
-      include: [
-        { model: CourseStructure },
-        { model: Timeline },
-        { model: Budget },
-        { model: User, attributes: ['username', 'email'] }
+      attributes: [
+        'id','category','status','submittedAt',
+        'programmeName','submittedBy','designation',
+        'submissionDate','submittedTo','aboutProgramme',
+        'eligibility','programmeFee','objectives1','benefits',
+        'programmeOutcomes','assessmentNotes','coordinatorResp',
+        'selectionProcess','infrastructure','budgetNotes',
+        'syllabusCourses','createdAt','updatedAt'
       ]
     });
 
-    // Map DB rows back to the flat shape the frontend expects
-    const shaped = proposals.map(p => {
+    const shaped = await Promise.all(proposals.map(async (p) => {
       const raw = p.toJSON();
 
-      // Helper: pull rows for a given tableKey stored in CourseStructures
-      const cs = (raw.CourseStructures || []);
-      const tl = (raw.Timelines || []);
-      const bg = (raw.Budgets || []);
+      const [csRows, tlRows, bgRows] = await Promise.all([
+        CourseStructure.findAll({ where: { proposalId: raw.id } }),
+        Timeline.findAll({        where: { proposalId: raw.id } }),
+        Budget.findAll({          where: { proposalId: raw.id } }),
+      ]);
 
-      // CourseStructures stores: { tableKey, rowIndex, colIndex, value }
       function extractTable(rows, key) {
         const filtered = rows.filter(r => r.tableKey === key);
         if (!filtered.length) return [];
         const maxRow = Math.max(...filtered.map(r => r.rowIndex));
         const result = [];
         for (let i = 0; i <= maxRow; i++) {
-          const rowCells = filtered.filter(r => r.rowIndex === i).sort((a, b) => a.colIndex - b.colIndex);
+          const rowCells = filtered
+            .filter(r => r.rowIndex === i)
+            .sort((a, b) => a.colIndex - b.colIndex);
           if (rowCells.length) result.push(rowCells.map(c => c.value || ''));
         }
         return result;
       }
 
+      let syllabusCourses = [];
+      try {
+        if (raw.syllabusCourses)
+          syllabusCourses = JSON.parse(raw.syllabusCourses);
+      } catch { syllabusCourses = []; }
+
       return {
         ...raw,
-        // Flatten associations into the names script.js reads
-        durationTable:     extractTable(cs, 'durationTable'),
-        curriculumTable:   extractTable(cs, 'curriculumTable'),
-        assessmentTable:   extractTable(cs, 'assessmentTable'),
-        orgStructureTable: extractTable(cs, 'orgStructureTable'),
-        revenueTable:      extractTable(bg, 'revenueTable'),
-        expenditureTable:  extractTable(bg, 'expenditureTable'),
-        revDistTable:      extractTable(bg, 'revDistTable'),
-        honorariumTable:   extractTable(bg, 'honorariumTable'),
-        breakevenTable:    extractTable(bg, 'breakevenTable'),
-        timelineTable:     extractTable(tl, 'timelineTable'),
-        // Remove raw associations from response to keep payload clean
-        CourseStructures: undefined,
-        Timelines: undefined,
-        Budgets: undefined,
+        syllabusCourses,
+        durationTable:     extractTable(csRows, 'durationTable'),
+        curriculumTable:   extractTable(csRows, 'curriculumTable'),
+        assessmentTable:   extractTable(csRows, 'assessmentTable'),
+        orgStructureTable: extractTable(csRows, 'orgStructureTable'),
+        revenueTable:      extractTable(bgRows, 'revenueTable'),
+        expenditureTable:  extractTable(bgRows, 'expenditureTable'),
+        revDistTable:      extractTable(bgRows, 'revDistTable'),
+        honorariumTable:   extractTable(bgRows, 'honorariumTable'),
+        breakevenTable:    extractTable(bgRows, 'breakevenTable'),
+        timelineTable:     extractTable(tlRows, 'timelineTable'),
       };
-    });
+    }));
 
     res.json(shaped);
   } catch(err) {
-    console.log(err);
+    console.error('Error fetching proposals:', err.message);
     res.status(500).json({ error: 'Error fetching proposals' });
   }
 });
@@ -212,7 +199,7 @@ app.patch('/proposals/:id', async (req, res) => {
     await Proposal.update({ status: req.body.status }, { where: { id: req.params.id } });
     res.json({ message: 'Status updated' });
   } catch(err) {
-    console.log(err);
+    console.error('Update status error:', err.message);
     res.status(500).json({ error: 'Error updating status' });
   }
 });
@@ -234,37 +221,81 @@ app.post('/chat', async (req, res) => {
   const { proposalId, message } = req.body;
   try {
     const proposal = await Proposal.findByPk(proposalId, {
-      include: [{ model: CourseStructure }, { model: Timeline }, { model: Budget }]
+      attributes: [
+        'id','programmeName','submittedBy','designation',
+        'submissionDate','submittedTo','aboutProgramme',
+        'eligibility','programmeFee','objectives1','benefits',
+        'programmeOutcomes','assessmentNotes','coordinatorResp',
+        'selectionProcess','infrastructure','budgetNotes',
+        'status','category','syllabusCourses'
+      ]
     });
     if (!proposal) return res.status(404).json({ reply: 'Proposal not found.' });
 
-    const prompt = `
-You are a senior academic proposal reviewer at a university continuing education centre.
+    const raw = proposal.toJSON();
 
-EVALUATION STANDARDS:
+    let syllabusCourses = [];
+    try {
+      if (raw.syllabusCourses) syllabusCourses = JSON.parse(raw.syllabusCourses);
+    } catch { syllabusCourses = []; }
+
+    const proposalSummary = `
+Programme: ${raw.programmeName || 'Not provided'}
+Submitted By: ${raw.submittedBy || 'Not provided'} (${raw.designation || 'Not provided'})
+Submitted To: ${raw.submittedTo || 'Not provided'}
+Category: ${raw.category || 'Not provided'}
+Status: ${raw.status || 'Not provided'}
+About: ${raw.aboutProgramme || 'Not provided'}
+Eligibility: ${raw.eligibility || 'Not provided'}
+Fee: ${raw.programmeFee || 'Not provided'}
+Objectives: ${raw.objectives1 || 'Not provided'}
+Benefits: ${raw.benefits || 'Not provided'}
+Programme Outcomes: ${raw.programmeOutcomes || 'Not provided'}
+Coordinator Responsibilities: ${raw.coordinatorResp || 'Not provided'}
+Selection Process: ${raw.selectionProcess || 'Not provided'}
+Infrastructure: ${raw.infrastructure || 'Not provided'}
+Budget Notes: ${raw.budgetNotes || 'Not provided'}
+Assessment Notes: ${raw.assessmentNotes || 'Not provided'}
+Courses: ${syllabusCourses.map((c, i) => `
+  Course ${i + 1}: ${c.title || 'Untitled'}
+  Topics: ${c.topics || 'Not provided'}
+  Lab Work: ${c.labWork || 'Not provided'}
+`).join('')}
+`.trim();
+
+    const prompt = `
+You are a balanced academic proposal reviewer helping a university executive quickly evaluate a programme proposal.
+
+Your job is to focus on two things only:
+1. Whether the proposal meets basic quality standards
+2. Whether the course structure and syllabus are complete
+
+REVIEW CHECKLIST:
 ${COMPANY_STANDARD}
 
-PROPOSAL SUBMITTED FOR REVIEW:
-${JSON.stringify(proposal, null, 2)}
+PROPOSAL DETAILS:
+${proposalSummary}
 
-REVIEWER'S QUESTION: "${message}"
+EXECUTIVE'S QUESTION: "${message}"
 
-Instructions:
-- Answer based strictly on the actual proposal content above
-- Reference specific sections, numbers, or values from the proposal when relevant
-- If something is missing or weak, state it clearly and explain why it matters
-- If something is strong, acknowledge it
-- Be concise, professional, and constructive
-- Do not make up information not present in the proposal
+How to respond:
+- Be concise — 3 to 5 sentences max unless a detailed breakdown is asked
+- Only highlight issues that actually matter for approval decisions
+- If something looks good, say so briefly and move on
+- If something is missing or weak, name it clearly and explain why it matters
+- Do not list every minor detail — focus on what would block or support approval
+- Use simple professional language, not academic jargon
+- If the question is not related to the proposal, politely say you can only help with proposal review
 `;
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     });
     res.json({ reply: completion.choices[0].message.content });
   } catch(err) {
-    console.log(err);
+    console.error('Chat error:', err.message);
     res.status(500).json({ reply: 'Error contacting AI.' });
   }
 });
@@ -275,19 +306,20 @@ app.post('/extract', async (req, res) => {
   try {
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }]
     });
     res.json({ result: completion.choices[0].message.content });
   } catch(err) {
-    console.log(err);
+    console.error('Extract error:', err.message);
     res.status(500).json({ result: '{}' });
   }
 });
 
 // ── START SERVER
-sequelize.sync({ alter: true })
+sequelize.sync({ alter: false })
   .then(() => {
     app.listen(process.env.PORT || 5000, () => console.log('Server Running'));
     console.log('PostgreSQL Connected & Tables Synced');
   })
-  .catch(err => console.log('DB Error:', err));
+  .catch(err => console.error('DB Error:', err));

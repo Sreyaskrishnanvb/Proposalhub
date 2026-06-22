@@ -123,7 +123,7 @@
               <div class="acc-sub-label">Basic Information</div>
               <div class="form-grid-2">
                 <div class="field"><label>Programme Name <span class="req">*</span></label><input type="text" id="programmeName" placeholder="e.g. Certificate Course in Library Technology" /></div>
-                <div class="field"><label>Submitted By <span class="req">*</span></label><input type="text" id="submittedBy" placeholder="e.g. Dr. Gopakumar V" /></div>
+                <div class="field"><label>Submitted By <span class="req">*</span></label><input type="text" id="submittedBy" placeholder="e.g. Your Name" /></div>
               </div>
               <div class="form-grid-2">
                 <div class="field"><label>Designation / Department <span class="req">*</span></label><input type="text" id="designation" placeholder="e.g. Head, Knowledge Centre" /></div>
@@ -131,16 +131,6 @@
               </div>
               <div class="form-grid-2">
                 <div class="field"><label>Submitted To <span class="req">*</span></label><input type="text" id="submittedTo" placeholder="e.g. Centre for Executive Education and Continuing Studies (CEECS)" /></div>
-                <div class="field"><label>CEECS Category <span class="req">*</span></label>
-                  <select id="ceecsCat">
-                    <option value="">Select category…</option>
-                    <option>Category I — Diploma / PG Diploma</option>
-                    <option>Category II — EEP (Executive Education Programme)</option>
-                    <option>Category III — FDP (Faculty Development Programme)</option>
-                    <option>Category IV — Seminars / Conclaves / Workshops</option>
-                    <option>Category V — Conferences</option>
-                  </select>
-                </div>
               </div>
             </div>
             <div class="acc-subsection">
@@ -312,7 +302,6 @@
         <h2>Proposal Submitted!</h2>
         <p>Your proposal has been received and is now pending review.</p>
         <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;">
-          <button class="btn-next" onclick="switchPage('faculty')">View Faculty Dashboard →</button>
           <button class="btn-back" onclick="resetForm()" style="padding:12px 28px;">+ Submit Another Proposal</button>
         </div>
       </div>
