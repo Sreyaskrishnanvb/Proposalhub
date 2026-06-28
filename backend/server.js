@@ -203,6 +203,20 @@ app.patch('/proposals/:id', async (req, res) => {
     res.status(500).json({ error: 'Error updating status' });
   }
 });
+// ── DELETE PROPOSAL
+app.delete('/proposals/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    await CourseStructure.destroy({ where: { proposalId: id } });
+    await Timeline.destroy({       where: { proposalId: id } });
+    await Budget.destroy({         where: { proposalId: id } });
+    await Proposal.destroy({       where: { id } });
+    res.json({ message: 'Proposal deleted' });
+  } catch(err) {
+    console.error('Delete error:', err.message);
+    res.status(500).json({ error: 'Error deleting proposal' });
+  }
+});
 
 // ── VERIFY TOKEN
 app.get('/verify', (req, res) => {
@@ -217,8 +231,9 @@ app.get('/verify', (req, res) => {
 });
 
 // ── CHAT
+// ── CHAT
 app.post('/chat', async (req, res) => {
-  const { proposalId, message } = req.body;
+  const { proposalId, message, history = [] } = req.body;
   try {
     const proposal = await Proposal.findByPk(proposalId, {
       attributes: [
@@ -233,6 +248,43 @@ app.post('/chat', async (req, res) => {
     if (!proposal) return res.status(404).json({ reply: 'Proposal not found.' });
 
     const raw = proposal.toJSON();
+
+    // ✅ Fetch all table data from DB
+    const [csRows, tlRows, bgRows] = await Promise.all([
+      CourseStructure.findAll({ where: { proposalId: raw.id } }),
+      Timeline.findAll({        where: { proposalId: raw.id } }),
+      Budget.findAll({          where: { proposalId: raw.id } }),
+    ]);
+
+    function extractTable(rows, key) {
+      const filtered = rows.filter(r => r.tableKey === key);
+      if (!filtered.length) return [];
+      const maxRow = Math.max(...filtered.map(r => r.rowIndex));
+      const result = [];
+      for (let i = 0; i <= maxRow; i++) {
+        const rowCells = filtered
+          .filter(r => r.rowIndex === i)
+          .sort((a, b) => a.colIndex - b.colIndex);
+        if (rowCells.length) result.push(rowCells.map(c => c.value || ''));
+      }
+      return result;
+    }
+
+    function tableToText(table) {
+      if (!table || !table.length) return 'Not provided';
+      return table.map(row => row.join(' | ')).join('\n');
+    }
+
+    const curriculumTable   = extractTable(csRows, 'curriculumTable');
+    const durationTable     = extractTable(csRows, 'durationTable');
+    const assessmentTable   = extractTable(csRows, 'assessmentTable');
+    const orgStructureTable = extractTable(csRows, 'orgStructureTable');
+    const timelineTable     = extractTable(tlRows, 'timelineTable');
+    const revenueTable      = extractTable(bgRows, 'revenueTable');
+    const expenditureTable  = extractTable(bgRows, 'expenditureTable');
+    const revDistTable      = extractTable(bgRows, 'revDistTable');
+    const honorariumTable   = extractTable(bgRows, 'honorariumTable');
+    const breakevenTable    = extractTable(bgRows, 'breakevenTable');
 
     let syllabusCourses = [];
     try {
@@ -256,14 +308,46 @@ Selection Process: ${raw.selectionProcess || 'Not provided'}
 Infrastructure: ${raw.infrastructure || 'Not provided'}
 Budget Notes: ${raw.budgetNotes || 'Not provided'}
 Assessment Notes: ${raw.assessmentNotes || 'Not provided'}
-Courses: ${syllabusCourses.map((c, i) => `
+
+CURRICULUM TABLE (courses, credits, hours):
+${tableToText(curriculumTable)}
+
+DURATION TABLE:
+${tableToText(durationTable)}
+
+ASSESSMENT TABLE:
+${tableToText(assessmentTable)}
+
+ORG STRUCTURE TABLE:
+${tableToText(orgStructureTable)}
+
+TIMELINE TABLE:
+${tableToText(timelineTable)}
+
+REVENUE TABLE:
+${tableToText(revenueTable)}
+
+EXPENDITURE TABLE:
+${tableToText(expenditureTable)}
+
+REVENUE DISTRIBUTION TABLE:
+${tableToText(revDistTable)}
+
+HONORARIUM TABLE:
+${tableToText(honorariumTable)}
+
+BREAKEVEN TABLE:
+${tableToText(breakevenTable)}
+
+SYLLABUS COURSES:
+${syllabusCourses.map((c, i) => `
   Course ${i + 1}: ${c.title || 'Untitled'}
   Topics: ${c.topics || 'Not provided'}
   Lab Work: ${c.labWork || 'Not provided'}
 `).join('')}
 `.trim();
 
-    const prompt = `
+    const systemPrompt = `
 You are a balanced academic proposal reviewer helping a university executive quickly evaluate a programme proposal.
 
 Your job is to focus on two things only:
@@ -276,8 +360,6 @@ ${COMPANY_STANDARD}
 PROPOSAL DETAILS:
 ${proposalSummary}
 
-EXECUTIVE'S QUESTION: "${message}"
-
 How to respond:
 - Be concise — 3 to 5 sentences max unless a detailed breakdown is asked
 - Only highlight issues that actually matter for approval decisions
@@ -286,12 +368,18 @@ How to respond:
 - Do not list every minor detail — focus on what would block or support approval
 - Use simple professional language, not academic jargon
 - If the question is not related to the proposal, politely say you can only help with proposal review
-`;
+`.trim();
+
+    const messages = [
+      { role: 'user', content: systemPrompt },
+      { role: 'assistant', content: 'Understood. I have reviewed the proposal details and am ready to answer your questions.' },
+      ...history.slice(-10),
+    ];
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       temperature: 0,
-      messages: [{ role: 'user', content: prompt }]
+      messages,
     });
     res.json({ reply: completion.choices[0].message.content });
   } catch(err) {
@@ -299,23 +387,6 @@ How to respond:
     res.status(500).json({ reply: 'Error contacting AI.' });
   }
 });
-
-// ── EXTRACT
-app.post('/extract', async (req, res) => {
-  const { prompt } = req.body;
-  try {
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0,
-      messages: [{ role: 'user', content: prompt }]
-    });
-    res.json({ result: completion.choices[0].message.content });
-  } catch(err) {
-    console.error('Extract error:', err.message);
-    res.status(500).json({ result: '{}' });
-  }
-});
-
 // ── START SERVER
 sequelize.sync({ alter: false })
   .then(() => {
