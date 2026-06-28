@@ -377,12 +377,13 @@ header {
 /* ── Faculty Main ── */
 .faculty-main {
   overflow-y: auto; position: relative;
+  display: flex; flex-direction: column;
 }
 
 .empty-state {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  height: 100%; gap: 12px;
+  flex: 1; gap: 12px;
   color: var(--text-dim);
 }
 .empty-icon { font-size: 56px; margin-bottom: 8px; }
@@ -1096,4 +1097,27 @@ header {
 }
 .summary-section-body {
   color: var(--text); font-size: 14px; line-height: 1.7;
+}
+.btn-delete-proposal {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-delete-proposal:hover {
+  background: var(--red);
+  color: #fff;
+}
+#emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
 }

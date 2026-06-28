@@ -84,7 +84,7 @@ async function handleLogin() {
   btn.disabled = true;
 
   try {
-    const res = await fetch('http://localhost:5000/login', {
+    const res = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, course, role: loginRole })
@@ -150,7 +150,7 @@ async function handleRegister() {
   btn.disabled = true;
 
   try {
-    const res = await fetch('http://localhost:5000/register', {
+    const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, email, password, course, doj, role: regRole })
@@ -166,7 +166,7 @@ async function handleRegister() {
     }
 
     // Auto login after register
-    const loginRes = await fetch('http://localhost:5000/login', {
+    const loginRes = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, course, role: regRole })

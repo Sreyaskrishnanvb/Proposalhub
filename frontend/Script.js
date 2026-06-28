@@ -33,6 +33,7 @@ let selectedIdx        = null;
 let selectedProposalId = null;
 let currentStep        = 1;
 let syllabusCourseCount = 0;
+let chatHistory = [];
 
 /* ─────────────────────────────
    PAGE NAVIGATION
@@ -132,7 +133,7 @@ document.getElementById('proposalForm').addEventListener('submit', async functio
   if (!validateForm()) return;
   const proposal = collectFormData();
   try {
-    const response = await fetch('http://localhost:5000/proposals', {
+    const response = await fetch('/api/proposals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(proposal)
@@ -229,7 +230,7 @@ function resetForm() {
 ───────────────────────────── */
 async function loadProposalsFromDB() {
   try {
-    const res = await fetch('http://localhost:5000/proposals');
+    const res = await fetch('/api/proposals');
     proposals = await res.json();
     proposals.forEach(p => { if (!p.status) p.status = 'pending'; });
     renderProposalList();
@@ -257,6 +258,7 @@ function renderSection(listId, items, emptyMsg) {
   if (items.length === 0) { list.innerHTML = `<div class="empty-list">${emptyMsg}</div>`; return; }
   list.innerHTML = items.map(p => {
     const i = proposals.indexOf(p);
+    const isRejected = p.status === 'rejected';
     return `
       <div class="proposal-card ${selectedIdx === i ? 'selected' : ''}" onclick="selectProposal(${i})">
         <div class="pc-title">${escHtml(p.programmeName || p.proposalTitle || '—')}</div>
@@ -264,6 +266,7 @@ function renderSection(listId, items, emptyMsg) {
           <span>${escHtml(p.submittedBy || p.studentName || '—')}</span>
           <span class="pc-status ${p.status}">${capitalize(p.status)}</span>
         </div>
+        ${isRejected ? `<button class="btn-delete-proposal" onclick="event.stopPropagation(); deleteProposal(${i})">🗑️ Delete</button>` : ''}
       </div>`;
   }).join('');
 }
@@ -455,6 +458,7 @@ function toggleChatbot() {
 }
 
 function resetChat() {
+  chatHistory = [];
   document.getElementById('chatWindow').innerHTML = `
     <div class="chat-msg bot">
       <div class="chat-avatar">AI</div>
@@ -469,15 +473,17 @@ async function sendChat() {
   input.value = '';
   appendChatMsg(question, 'user');
   const typingId = appendTyping();
+  chatHistory.push({ role: 'user', content: question });
   try {
-    const res = await fetch('http://localhost:5000/chat', {
+    const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proposalId: selectedProposalId, message: question })
+      body: JSON.stringify({ proposalId: selectedProposalId, message: question, history: chatHistory })
     });
     const data = await res.json();
     removeTyping(typingId);
     appendChatMsg(data.reply, 'bot');
+    chatHistory.push({ role: 'assistant', content: data.reply });
   } catch {
     removeTyping(typingId);
     appendChatMsg('⚠️ Could not reach the server.', 'bot');
@@ -788,9 +794,48 @@ async function extractFieldsWithAI(text) {
 
 /* ─── Build the extraction prompt ──────────────────────────── */
 function buildExtractionPrompt(chunk, num, total) {
-  return `You are extracting structured data from part ${num} of ${total} of an academic programme proposal document.
-Extract ONLY fields found in THIS chunk. Use empty string "" or empty array [] for anything not in this chunk.
-Return ONLY valid compact JSON — no markdown fences, no explanation, no extra keys.
+  return `You are extracting structured data from part ${num} of ${total} of an academic programme proposal PDF.
+
+Your job is to MAP the content from this PDF into the exact JSON fields below.
+The PDF may use different section names — use context to figure out the right field.
+
+FIELD MAPPING GUIDE:
+- "programmeName"    → The title of the course/programme (e.g. "Certificate Course in Library Technology")
+- "submittedBy"      → Person who submitted (e.g. "Dr Gopakumar V")
+- "designation"      → Their title/role (e.g. "Head, Knowledge Centre")
+- "submissionDate"   → Date of submission formatted as YYYY-MM-DD (e.g. "2026-04-20"). Convert any date format to this.
+- "submittedTo"      → Who it is submitted to (e.g. "CEECS" or "Centre for Executive Education")
+- "aboutProgramme"   → Introduction / About section — minimum 100 words describing the programme
+- "eligibility"      → Eligibility Criteria section
+- "programmeFee"     → Fee mentioned anywhere (e.g. "Rs. 35,000/-")
+- "objectives1"      → Objectives of the Course / Programme Objectives section
+- "benefits"         → Section on Benefits to Students — extract ALL subsections with full content including Academic Recognition, Career and Employability, Content Quality. Do NOT use the short summary version.
+- "programmeOutcomes"→ Programme Outcomes (POs) section — extract ALL POs listed (PO1, PO2... etc) with their full descriptions as a single text block. Look for "Upon successful completion" heading. Do NOT leave empty if POs are present.
+- "assessmentNotes"  → Assessment Scheme details, attendance requirements, passing criteria
+- "coordinatorResp"  → Faculty and Resource Persons section — list all faculty, guest experts, and support staff mentioned. Also includes coordinator responsibilities if described.
+- "selectionProcess" → Intake and Admission Process / Selection Process section
+- "infrastructure"   → Infrastructure / Learning Environment / Mode of Instruction section
+- "budgetNotes"      → Budget notes, assumptions, implementation plan phases, conclusion
+
+TABLE FIELD MAPPING GUIDE:
+- "durationTable"    → Duration details as rows: [["Total Duration","3 Months"], ["Daily Contact Hours","5 hours"], ...]
+- "curriculumTable"  → Module/Course table: [["1","Module Title","Level","Hours","Credits"], ...]
+- "assessmentTable"  → Assessment table: [["Continuous Assessment","description","40%","Formative"], ...]
+- "orgStructureTable"→ Faculty / Resource persons table if present, otherwise []
+- "timelineTable"    → Implementation Plan or Timeline section. Each phase as a row: [["1","Phase name / Activity","Timeline / Month"]]. Look for "Phase 1", "Phase 2" or numbered milestone tables.
+- "revenueTable"     → Revenue / Fee related rows: [["Course Fee","Rs. 35,000"], ...]
+- "revenueTable"     → Full revenue projection table with ALL rows including gross revenue, GST, and net amount. Example: [["Programme Fee per Student","Rs. 35,000/-"], ["Maximum Intake","30 Students"], ["Gross Revenue","Rs. 10,50,000/-"], ...]
+- "revDistTable"     → Revenue distribution if present, otherwise []
+- "honorariumTable"  → Honorarium rates if present, otherwise []
+- "breakevenTable"   → Break-even info if present, otherwise []
+
+For syllabusCourses: extract each Module/Course as a separate object.
+- title:    the module/course title only (without "Module 1:" prefix)
+- topics:   all lecture topics, content, or description for that module
+- labWork:  practical component or lab work described for that module
+- outcomes: Generate 3-5 course outcomes for each course based on its topics and description, even if no CO table exists in the document. Format: [["CO1.1", "Description of what the learner can do", "PO1, PO2"], ...]. Use action verbs (Explain, Demonstrate, Apply, Analyse, Design). Map to relevant POs from the programmeOutcomes section if available, otherwise use PO1-PO5 as appropriate.
+
+Return ONLY this JSON — no markdown, no explanation:
 
 {
   "programmeName": "",
@@ -808,7 +853,7 @@ Return ONLY valid compact JSON — no markdown fences, no explanation, no extra 
   "coordinatorResp": "",
   "selectionProcess": "",
   "infrastructure": "",
-  "budgetNotes": "(Extract: Notes & Assumptions, budget assumptions, key financial assumptions, or any notes about the budget)",
+  "budgetNotes": "",
   "durationTable":     [],
   "curriculumTable":   [],
   "assessmentTable":   [],
@@ -821,28 +866,6 @@ Return ONLY valid compact JSON — no markdown fences, no explanation, no extra 
   "breakevenTable":    [],
   "syllabusCourses":   []
 }
-
-Table formats (arrays of arrays):
-durationTable:     [["Parameter","Details"], ...]
-curriculumTable:   [["No","Title","Level","Hours","Credits"], ...]
-assessmentTable:   [["Type","Components","Weightage","Mode"], ...]
-orgStructureTable: [["Role","Responsibility"], ...]
-timelineTable:     [["No","Milestone","Date"], ...]
-revenueTable:      [["Parameter","Value"], ...]
-expenditureTable:  [["No","Head","Amount"], ...]
-revDistTable:      [["SNo","Component","Norm","Rate","Amount"], ...]
-honorariumTable:   [["Category","Rate"], ...]
-breakevenTable:    [["Parameter","Value"], ...]
-
-IMPORTANT: "budgetNotes" = the "Notes & Assumptions" section or any budget-related notes/assumptions text. This usually appears at the very end of Section 4. Do NOT leave it empty if such content exists in this chunk.
-For syllabusCourses: extract each course as a separate object.
-
-- title: the course heading only
-- topics: ONLY the Lecture Topics listed under THAT course, not from any other course
-- labWork: ONLY the Laboratory Component text directly under THAT course heading, not from any other course
-- outcomes: course outcome rows as arrays
-
-syllabusCourses: [{"title":"","topics":"","labWork":"","outcomes":[["COCode","Description","POMapping"]]}]
 
 DOCUMENT CHUNK ${num}/${total}:
 """
@@ -989,7 +1012,7 @@ async function callExtract(prompt) {
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const res = await fetch('http://localhost:5000/extract', {
+      const res = await fetch('/api/extract', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ prompt }),
@@ -1086,34 +1109,142 @@ function fillForm(data) {
     el.value = v; flashField(el); filled++;
   }
 
-  const tableMap = {
-    durationTable:'tbl-duration-body',     curriculumTable:'tbl-curriculum-body',
-    assessmentTable:'tbl-assessment-body', orgStructureTable:'tbl-orgstructure-body',
-    timelineTable:'tbl-timeline-body',     revenueTable:'tbl-revenue-body',
-    expenditureTable:'tbl-expenditure-body', revDistTable:'tbl-revdist-body',
-    honorariumTable:'tbl-honorarium-body', breakevenTable:'tbl-breakeven-body',
+  // Default skeleton rows for each table — shown even if AI didn't extract data
+  const tableDefaults = {
+    durationTable: [
+      ['Total Duration', ''],
+      ['Daily Contact Hours', ''],
+      ['Total Course Hours', ''],
+      ['Mode of Delivery', ''],
+      ['Medium of Instruction', ''],
+      ['Maximum Intake', ''],
+      ['Total Credits', ''],
+      ['Certificate Awarding Authority', ''],
+      ['Credit Recognition', ''],
+    ],
+    curriculumTable: [
+      ['1', '', '300', '', ''],
+      ['2', '', '300', '', ''],
+      ['3', '', '300', '', ''],
+      ['4', '', '300', '', ''],
+      ['5', '', '400', '', ''],
+    ],
+    assessmentTable: [
+      ['Continuous Assessment (CA)', '', '', ''],
+      ['Course-End Assessment (CEA)', '', '', ''],
+    ],
+    orgStructureTable: [
+      ['Programme Proposer / Principal Resource', ''],
+      ['Programme Coordinator (Chair)', ''],
+      ['Oversight and Approval Authority', ''],
+      ['Administrative Management', ''],
+      ['Academic Quality Assurance', ''],
+      ['Finance and Revenue Distribution', ''],
+      ['Guest Faculty / External Experts', ''],
+      ['Technical Support', ''],
+      ['Signatory Authority – Certificates', ''],
+      ['Signatory Authority – Agreements/Contracts', ''],
+    ],
+    timelineTable: [
+      ['1', '', ''],
+      ['2', '', ''],
+      ['3', '', ''],
+      ['4', '', ''],
+      ['5', '', ''],
+    ],
+    revenueTable: [
+      ['Programme Fee per Student', ''],
+      ['Maximum Intake (Full Capacity)', ''],
+      ['Gross Revenue (G) – Full Capacity', ''],
+      ['Estimated GST (if applicable @ 18%)', ''],
+      ['Net Amount (N = G – T)', ''],
+    ],
+    expenditureTable: [
+      ['1', '', ''],
+      ['2', '', ''],
+      ['3', '', ''],
+      ['4', '', ''],
+      ['5', '', ''],
+    ],
+    revDistTable: [
+      ['1', 'Gross Amount (G)', '—', '—', ''],
+      ['2', 'Less: GST (T)', '—', '18%', ''],
+      ['3', 'Net Amount (N = G – T)', '—', '—', ''],
+      ['4', 'CEECS Share (from N)', '5% N', '5%', ''],
+      ['5', 'Staff Welfare Fund (from N)', '5% N', '5%', ''],
+      ['6', 'University Overhead (from N)', '10% N', '10%', ''],
+      ['7', 'Programme Execution Cost Ceiling (C = 80% N)', '80% N', '80%', ''],
+      ['8', 'Estimated Actual Expenditure (E)', '—', '—', ''],
+      ['9', 'Savings (S = C – E)', '—', '—', ''],
+      ['10', 'Programme Chair(s) Share (from S)', '5% S', '5%', ''],
+      ['11', 'CEECS Share (from S)', '30% S', '30%', ''],
+      ['12', 'Department / Centre Share (from S)', '25% S', '25%', ''],
+      ['13', 'University Share (from S)', '40% S', '40%', ''],
+    ],
+    honorariumTable: [
+      ['External Resource Person / Subject Expert (Seminars/Workshops)', ''],
+      ['Internal Resource Person / Subject Expert (Training Programs)', ''],
+      ['Guest Faculty for courses with sessions up to 5 hours', ''],
+      ['Guest Faculty handling sessions of courses with 1 credit', ''],
+      ['Project / Technical Staff assisting lab sessions', ''],
+      ['Research Scholars handling sessions of courses', ''],
+    ],
+    breakevenTable: [
+      ['Fixed Programme Cost (minimum, regardless of enrolment)', ''],
+      ['Variable Cost per Additional Student (materials, lab, admin)', ''],
+      ['Break-even Enrolment (minimum students to cover costs)', ''],
+      ['Minimum Recommended Enrolment to Run Programme', ''],
+      ['Programme Surplus at Minimum Recommended Enrolment', ''],
+      ['Maximum Revenue at Full Capacity', ''],
+    ],
   };
+
+  const tableMap = {
+    durationTable:     'tbl-duration-body',
+    curriculumTable:   'tbl-curriculum-body',
+    assessmentTable:   'tbl-assessment-body',
+    orgStructureTable: 'tbl-orgstructure-body',
+    timelineTable:     'tbl-timeline-body',
+    revenueTable:      'tbl-revenue-body',
+    expenditureTable:  'tbl-expenditure-body',
+    revDistTable:      'tbl-revdist-body',
+    honorariumTable:   'tbl-honorarium-body',
+    breakevenTable:    'tbl-breakeven-body',
+  };
+
   for (const [key, tbodyId] of Object.entries(tableMap)) {
-    const rows  = normaliseRows(data[key]);
-    if (!rows.length) continue;
+    const aiRows       = normaliseRows(data[key]);
+    const defaultRows  = tableDefaults[key] || [];
+
+    // Use AI rows if extracted, otherwise use skeleton defaults
+    const rowsToUse = aiRows.length > 0 ? aiRows : defaultRows;
+
     const tbody = document.getElementById(tbodyId);
     if (!tbody) continue;
     tbody.innerHTML = '';
-    for (const row of rows) {
+
+    for (const row of rowsToUse) {
       const tr = document.createElement('tr');
       for (const cell of row) {
         const td  = document.createElement('td');
         const inp = document.createElement('input');
-        inp.type = 'text'; inp.value = cell;
-        flashField(inp); td.appendChild(inp); tr.appendChild(td);
+        inp.type  = 'text';
+        inp.value = cell;
+        if (cell) flashField(inp);
+        td.appendChild(inp);
+        tr.appendChild(td);
       }
-      const tdDel = document.createElement('td');
+      const tdDel  = document.createElement('td');
       tdDel.style.width = '32px';
       const btnDel = document.createElement('button');
-      btnDel.type = 'button'; btnDel.className = 'btn-del-row'; btnDel.textContent = '✕';
-      btnDel.onclick = () => tr.remove();
-      tdDel.appendChild(btnDel); tr.appendChild(tdDel);
-      tbody.appendChild(tr); filled++;
+      btnDel.type      = 'button';
+      btnDel.className = 'btn-del-row';
+      btnDel.textContent = '✕';
+      btnDel.onclick   = () => tr.remove();
+      tdDel.appendChild(btnDel);
+      tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+      filled++;
     }
   }
 
@@ -1192,4 +1323,468 @@ function showUploadStatus(text, percent) {
   status.style.display = 'block';
   document.getElementById('uploadProgressBar').style.width = percent + '%';
   document.getElementById('uploadStatusText').textContent  = text;
+}
+/* ─────────────────────────────
+   EXPORT PROPOSAL AS PDF
+───────────────────────────── */
+async function exportProposalPDF() {
+  if (selectedIdx === null) return;
+  const p = proposals[selectedIdx];
+
+  // Load jsPDF from CDN if not already loaded
+  if (!window.jspdf) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      script.onload  = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  // Load jsPDF autotable plugin
+  if (!window.jspdf?.jsPDF?.prototype?.autoTable) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+      script.onload  = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const PAGE_W    = 210;
+  const MARGIN    = 18;
+  const CONTENT_W = PAGE_W - MARGIN * 2;
+  let y = 20;
+
+  // ── Colors
+  const GOLD   = [212, 169, 74];
+  const DARK   = [20, 24, 36];
+  const GREY   = [100, 108, 132];
+  const WHITE  = [255, 255, 255];
+  const LIGHT  = [245, 246, 250];
+
+  // ── Helper: check page overflow
+  function checkPage(needed = 10) {
+    if (y + needed > 275) {
+      doc.addPage();
+      y = 20;
+    }
+  }
+
+  // ── Helper: section heading
+  function sectionHeading(title) {
+    checkPage(14);
+    doc.setFillColor(...GOLD);
+    doc.rect(MARGIN, y, CONTENT_W, 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...WHITE);
+    doc.text(title.toUpperCase(), MARGIN + 4, y + 5.5);
+    y += 12;
+    doc.setTextColor(...DARK);
+  }
+
+  // ── Helper: field label + value
+  function field(label, value) {
+    if (!value) return;
+    checkPage(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...GREY);
+    doc.text(label.toUpperCase(), MARGIN, y);
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...DARK);
+    const lines = doc.splitTextToSize(value, CONTENT_W);
+    lines.forEach(line => {
+      checkPage(6);
+      doc.text(line, MARGIN, y);
+      y += 5;
+    });
+    y += 3;
+  }
+
+  // ── Helper: render a table
+  function table(headers, rows, title) {
+    if (!rows || !rows.length) return;
+    checkPage(20);
+    if (title) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...GREY);
+      doc.text(title.toUpperCase(), MARGIN, y);
+      y += 4;
+    }
+    doc.autoTable({
+      startY: y,
+      head: [headers],
+      body: rows,
+      margin: { left: MARGIN, right: MARGIN },
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+        textColor: DARK,
+        lineColor: [220, 224, 235],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: DARK,
+        textColor: WHITE,
+        fontStyle: 'bold',
+        fontSize: 8,
+      },
+      alternateRowStyles: { fillColor: LIGHT },
+      tableLineColor: [220, 224, 235],
+      tableLineWidth: 0.2,
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ════════════════════════════════
+  // COVER / HEADER
+  // ════════════════════════════════
+  doc.setFillColor(...DARK);
+  doc.rect(0, 0, PAGE_W, 42, 'F');
+  doc.setFillColor(...GOLD);
+  doc.rect(0, 42, PAGE_W, 2, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.setTextColor(...GOLD);
+  doc.text('ProposalHub', MARGIN, 18);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...WHITE);
+  doc.text('Programme Proposal Report', MARGIN, 27);
+
+  doc.setFontSize(8);
+  doc.setTextColor(180, 185, 200);
+  doc.text(`Generated: ${new Date().toLocaleString('en-IN')}`, MARGIN, 35);
+
+  // Status badge
+  const statusColor = p.status === 'approved' ? [62,207,122] : p.status === 'rejected' ? [242,107,107] : [212,169,74];
+  doc.setFillColor(...statusColor);
+  doc.roundedRect(PAGE_W - MARGIN - 30, 12, 30, 10, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...WHITE);
+  doc.text((p.status || 'Pending').toUpperCase(), PAGE_W - MARGIN - 15, 18.5, { align: 'center' });
+
+  y = 52;
+  doc.setTextColor(...DARK);
+
+  // ════════════════════════════════
+  // SECTION 1 — INTRODUCTION
+  // ════════════════════════════════
+  sectionHeading('Section 1 — Introduction & Overview');
+
+  // Basic info as a mini table
+  doc.autoTable({
+    startY: y,
+    body: [
+      ['Programme Name', p.programmeName || '—'],
+      ['Submitted By',   `${p.submittedBy || '—'} · ${p.designation || '—'}`],
+      ['Submitted To',   p.submittedTo || '—'],
+      ['Submission Date', p.submissionDate || '—'],
+      ['Category',       p.category || '—'],
+    ],
+    margin: { left: MARGIN, right: MARGIN },
+    columnStyles: {
+      0: { fontStyle: 'bold', cellWidth: 45, fillColor: LIGHT, textColor: GREY },
+      1: { textColor: DARK },
+    },
+    styles: { fontSize: 9, cellPadding: 3 },
+    tableLineColor: [220, 224, 235],
+    tableLineWidth: 0.2,
+  });
+  y = doc.lastAutoTable.finalY + 6;
+
+  field('About the Programme', p.aboutProgramme);
+  field('Eligibility Criteria', p.eligibility);
+  table(['Parameter', 'Details'], p.durationTable, 'Programme Duration & Mode');
+  field('Programme Fee', p.programmeFee);
+  field('Objectives', p.objectives1);
+  field('Benefits to Students', p.benefits);
+
+  // ════════════════════════════════
+  // SECTION 2 — COURSE STRUCTURE
+  // ════════════════════════════════
+  sectionHeading('Section 2 — Course Structure');
+  table(['No.','Course Title','Level','Hours','Credits'], p.curriculumTable, 'Curriculum Overview');
+  field('Programme Outcomes', p.programmeOutcomes);
+
+  // Syllabus courses
+  let courses = p.syllabusCourses;
+  if (typeof courses === 'string') { try { courses = JSON.parse(courses); } catch { courses = []; } }
+  if (Array.isArray(courses) && courses.length) {
+    courses.forEach((course, i) => {
+      checkPage(20);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...GOLD);
+      doc.text(`Course ${i + 1}: ${course.title || ''}`, MARGIN, y);
+      y += 5;
+      doc.setTextColor(...DARK);
+
+      if (course.outcomes && course.outcomes.length) {
+        table(['CO Code','Description','PO Mapping'], course.outcomes, 'Course Outcomes');
+      }
+      if (course.topics) field('Lecture Topics', course.topics);
+      if (course.labWork) field('Lab / Practical Component', course.labWork);
+      y += 2;
+    });
+  }
+
+  table(['Assessment Type','Components','Weightage','Mode'], p.assessmentTable, 'Assessment Scheme');
+  field('Assessment Notes', p.assessmentNotes);
+
+  // ════════════════════════════════
+  // SECTION 3 — PLAN OF EXECUTION
+  // ════════════════════════════════
+  sectionHeading('Section 3 — Plan of Execution');
+  table(['Role','Responsibility'], p.orgStructureTable, 'Organising Structure');
+  table(['No.','Milestone / Activity','Tentative Date'], p.timelineTable, 'Programme Timeline & Key Dates');
+  field('Coordinator Responsibilities', p.coordinatorResp);
+  field('Application & Selection Process', p.selectionProcess);
+  field('Infrastructure & Support', p.infrastructure);
+
+  // ════════════════════════════════
+  // SECTION 4 — BUDGET
+  // ════════════════════════════════
+  sectionHeading('Section 4 — Tentative Budget');
+  table(['Parameter','Value'], p.revenueTable, 'Revenue Projection');
+  table(['No.','Expenditure Head','Amount (Rs.)'], p.expenditureTable, 'Expenditure Estimate');
+  table(['S.No','Component','Norm','Rate','Amount (Rs.)'], p.revDistTable, 'Revenue Distribution');
+  table(['Category of Resource Person','Rate'], p.honorariumTable, 'Guest Faculty Honorarium');
+  table(['Parameter','Value'], p.breakevenTable, 'Break-even Analysis');
+  if (p.budgetNotes) {
+    checkPage(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...GREY);
+    doc.text('NOTES & ASSUMPTIONS', MARGIN, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+
+    const sanitised = p.budgetNotes
+      .replace(/\u00b9\s*/g, 'Rs. ')
+      .replace(/\u20b9\s*/g, 'Rs. ')
+      .replace(/Rs\.\s{2,}/g, 'Rs. ');
+
+    const raw = sanitised
+      .split(/[,;]\s*(?=[A-Z]|Item:|Total)/)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const items = raw.length > 1 ? raw : sanitised.split(/\.\s+/).map(s => s.trim()).filter(Boolean);
+
+    items.forEach(item => {
+      const bullet = '\u2022 ' + item;
+      const lines  = doc.splitTextToSize(bullet, CONTENT_W - 4);
+      lines.forEach((line, li) => {
+        checkPage(6);
+        doc.text(line, li === 0 ? MARGIN : MARGIN + 4, y);
+        y += 5;
+      });
+      y += 1;
+    });
+    y += 3;
+  }
+
+  // ════════════════════════════════
+  // FOOTER on every page
+  // ════════════════════════════════
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFillColor(...DARK);
+    doc.rect(0, 287, PAGE_W, 10, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(180, 185, 200);
+    doc.text('ProposalHub — Digital University Kerala', MARGIN, 293);
+    doc.text(`Page ${i} of ${totalPages}`, PAGE_W - MARGIN, 293, { align: 'right' });
+  }
+  // ════════════════════════════════
+  // SECTION 5 — COMPLIANCE AND GOVERNANCE
+  // ════════════════════════════════
+  sectionHeading('Section 5 — Compliance and Governance');
+
+  // 5.1 Regulatory and Policy Compliance
+  checkPage(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD);
+  doc.text('5.1 Regulatory and Policy Compliance', MARGIN, y);
+  y += 6;
+  doc.setTextColor(...DARK);
+
+  const compliance51 = [
+    'The programme is proposed, designed, and will be executed in full compliance with the University Policy and Regulation on the Conduct of Executive Education and Continuing Education Programs (Revised 2025-26) of Digital University Kerala (KUDSIT).',
+    'The assessment norms, grading, attendance requirements, academic integrity provisions, and SGPA/CGPA calculation shall be governed by the Examination Manual of Digital University Kerala as approved by the Board of Governors (BoG) and currently in force.',
+    'Honoraria for all resource persons shall be governed by U.O. No. 505/2022/DUK dated 03.06.2022, as amended.',
+    'Revenue collection, distribution, and financial accounting shall follow the CEECS Financial Norms (Revised 2025-26) and the prevailing financial regulations of the University.',
+  ];
+  compliance51.forEach(point => {
+    checkPage(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(`• ${point}`, CONTENT_W);
+    lines.forEach(line => { checkPage(6); doc.text(line, MARGIN, y); y += 5; });
+    y += 1;
+  });
+  y += 3;
+
+  // 5.2 Signatory Authority
+  checkPage(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD);
+  doc.text('5.2 Signatory Authority', MARGIN, y);
+  y += 5;
+  doc.setTextColor(...DARK);
+
+  table(
+    ['Document / Action', 'Signatory Authority'],
+    [
+      ['Certificate of Completion (Academic Credential)', 'Dean Academic + Chair, CEECS'],
+      ['Offer Letters to Selected Students', 'Chair, CEECS / CEECS Office'],
+      ['Agreements / MoUs with Collaborating Organisations (if any)', 'Registrar, Digital University Kerala'],
+      ['Programme Approval Communication', 'VC (after EC recommendation)'],
+      ['Fee Collection Receipts', 'Finance Office / CEECS Office, Digital University Kerala'],
+      ['Programme Completion Report', 'Programme Coordinator + Chair, CEECS'],
+      ['Revenue Distribution Orders', 'Registrar / Finance Office, Digital University Kerala'],
+      ['NAD Credit Upload Authorisation', 'Dean Academic and Academic office, Digital University Kerala'],
+    ],
+    null
+  );
+
+  // 5.3 Documents to be Maintained
+  checkPage(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD);
+  doc.text('5.3 Documents to be Maintained', MARGIN, y);
+  y += 5;
+  doc.setTextColor(...DARK);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...GREY);
+  const doc53intro = doc.splitTextToSize(
+    'The following documents shall be maintained by the Programme Coordinator and produced to CEECS / University administration as and when required:',
+    CONTENT_W
+  );
+  doc53intro.forEach(line => { checkPage(6); doc.text(line, MARGIN, y); y += 5; });
+  y += 2;
+  doc.setTextColor(...DARK);
+
+  const docs53 = [
+    'Attendance records of all participants for each session, maintained daily.',
+    'Copies of all academic and non-academic materials shared with participants.',
+    'Continuous assessment records: quiz scripts, assignment submissions, lab records, presentation evaluation sheets.',
+    'Completed programme feedback forms from all participants (in CEECS standard format).',
+    'Consumable and Non-Consumable Register for all equipment and materials purchased/used.',
+    'Travel Record Register for all travel expenditures (if any).',
+    'Correspondence file: all communications since programme initiation.',
+    'A copy of the Completion Certificate (master copy) and Programme Completion Report.',
+    'APAAR ID records of all enrolled participants (for NAD credit upload).',
+    'Financial settlement records: fee receipts, expenditure vouchers, and revenue distribution documents.',
+  ];
+  docs53.forEach(point => {
+    checkPage(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(`• ${point}`, CONTENT_W);
+    lines.forEach(line => { checkPage(6); doc.text(line, MARGIN, y); y += 5; });
+    y += 1;
+  });
+  y += 3;
+
+  // 5.4 General Governance Rules
+  checkPage(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...GOLD);
+  doc.text('5.4 General Governance Rules Applicable', MARGIN, y);
+  y += 5;
+  doc.setTextColor(...DARK);
+
+  const governance54 = [
+    'The programme must generate a minimum surplus of 10% of gross revenue. If this is not achievable at minimum enrolment, the Programme Coordinator must seek explicit relaxation from the Chair, CEECS, with justification, before commencement.',
+    'The permissible level of engagement of external organisations/resources in execution is limited to 50% of total programme delivery.',
+    'The Programme Coordinator may not proceed on extended leave during the programme period without designating a substitute approved by CEECS.',
+    'Any postponement or cancellation must be communicated to CEECS at least 10 days before commencement, and to all enrolled participants at least 7 days before commencement.',
+    'Refund of fees in case of cancellation must be processed by CEECS within the stipulated period.',
+    'Any dispute arising during the programme shall be resolved by the Chair, CEECS; the decision of the Vice Chancellor shall be final in all matters.',
+  ];
+  governance54.forEach(point => {
+    checkPage(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const lines = doc.splitTextToSize(`• ${point}`, CONTENT_W);
+    lines.forEach(line => { checkPage(6); doc.text(line, MARGIN, y); y += 5; });
+    y += 1;
+  });
+  y += 4;
+
+  // Final signature line
+  checkPage(20);
+  doc.setDrawColor(...GOLD);
+  doc.setLineWidth(0.5);
+  doc.line(MARGIN, y, MARGIN + 60, y);
+  y += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(...DARK);
+  doc.text(p.submittedBy || 'Programme Proposer', MARGIN, y);
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GREY);
+  doc.text(p.designation || '', MARGIN, y);
+  y += 4;
+  doc.text(`Date: ${p.submissionDate || new Date().toLocaleDateString('en-IN')}`, MARGIN, y);
+  // ── Save
+  const filename = `${(p.programmeName || 'Proposal').replace(/[^a-z0-9]/gi, '_')}_Report.pdf`;
+  doc.save(filename);
+  showToast('📄 PDF exported successfully!', 'var(--green)');
+}
+let pendingDeleteIdx = null;
+
+function deleteProposal(idx) {
+  pendingDeleteIdx = idx;
+  const modal = document.getElementById('deleteModal');
+  modal.style.display = 'flex';
+}
+
+async function confirmDelete() {
+  document.getElementById('deleteModal').style.display = 'none';
+  const idx = pendingDeleteIdx;
+  if (idx === null) return;
+  const proposal = proposals[idx];
+  try {
+    await fetch(`http://localhost:5000/proposals/${proposal.id}`, { method: 'DELETE' });
+    proposals.splice(idx, 1);
+    selectedIdx = null;
+    selectedProposalId = null;
+    document.getElementById('reviewPanel').style.display = 'none';
+    document.getElementById('summaryPanel').style.display = 'none';
+    document.getElementById('chatbotPanel').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'flex';
+    renderProposalList();
+    showToast('🗑️ Proposal deleted', 'var(--red)');
+  } catch {
+    showToast('⚠️ Could not delete proposal', 'var(--red)');
+  }
+  pendingDeleteIdx = null;
 }
