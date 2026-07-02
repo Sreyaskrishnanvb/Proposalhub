@@ -317,7 +317,7 @@ async function setDecision(decision) {
   const label = decision === 'approved' ? '✅ Proposal Approved' : '❌ Proposal Not Approved';
   showToast(label, decision === 'approved' ? 'var(--green)' : 'var(--red)');
   try {
-    await fetch(`http://localhost:5000/proposals/${proposal.id}`, {
+    await fetch(`/api/proposals/${proposal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: decision })
@@ -1773,7 +1773,7 @@ async function confirmDelete() {
   if (idx === null) return;
   const proposal = proposals[idx];
   try {
-    await fetch(`http://localhost:5000/proposals/${proposal.id}`, { method: 'DELETE' });
+    await fetch(`/api/proposals/${proposal.id}`, { method: 'DELETE' });
     proposals.splice(idx, 1);
     selectedIdx = null;
     selectedProposalId = null;

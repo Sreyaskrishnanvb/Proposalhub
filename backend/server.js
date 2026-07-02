@@ -387,6 +387,21 @@ How to respond:
     res.status(500).json({ reply: 'Error contacting AI.' });
   }
 });
+// ── EXTRACT
+app.post('/extract', async (req, res) => {
+  const { prompt } = req.body;
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    res.json({ result: completion.choices[0].message.content });
+  } catch(err) {
+    console.error('Extract error:', err.message);
+    res.status(500).json({ result: '{}' });
+  }
+});
 // ── START SERVER
 sequelize.sync({ alter: false })
   .then(() => {
